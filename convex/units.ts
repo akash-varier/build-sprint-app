@@ -1,8 +1,10 @@
+import type {FridgeEntry} from '../shared/units';
+import {api} from './_generated/api';
 import { query } from './_generated/server';
 import { v } from 'convex/values';
 import { entryV,unitV } from './validators';
 import { foods } from '../shared/food';
 import { supportedUnits } from '../shared/units';
 import { changeEntryUnit,unitHint } from './lib/ingredientUnits';
-export const convert=query({args:{entry:entryV,unit:unitV},returns:entryV,handler:(_,args)=>changeEntryUnit(args.entry,args.unit)});
+export const convert=query({args:{token:v.optional(v.string()),entry:entryV,unit:unitV},returns:entryV,handler:async(ctx,args):Promise<FridgeEntry>=>changeEntryUnit(args.entry,args.unit,args.token?await ctx.runQuery(api.ingredients.list,{token:args.token}):[])});
 export const catalog=query({args:{},returns:v.array(v.object({id:v.string(),hints:v.array(v.object({unit:unitV,hint:v.string()}))})),handler:()=>foods.map(f=>({id:f.id,hints:supportedUnits(f.id).map(unit=>({unit,hint:unitHint(f.id,unit)}))}))});

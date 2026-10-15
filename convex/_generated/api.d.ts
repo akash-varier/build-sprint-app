@@ -9,6 +9,8 @@
  */
 
 import type * as households from "../households.js";
+import type * as ingredientAI from "../ingredientAI.js";
+import type * as ingredients from "../ingredients.js";
 import type * as lib_dishRequest from "../lib/dishRequest.js";
 import type * as lib_householdMeasures from "../lib/householdMeasures.js";
 import type * as lib_ingredientUnits from "../lib/ingredientUnits.js";
@@ -26,6 +28,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   households: typeof households;
+  ingredientAI: typeof ingredientAI;
+  ingredients: typeof ingredients;
   "lib/dishRequest": typeof lib_dishRequest;
   "lib/householdMeasures": typeof lib_householdMeasures;
   "lib/ingredientUnits": typeof lib_ingredientUnits;

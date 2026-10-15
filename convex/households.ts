@@ -1,3 +1,5 @@
+import {estimatedFood} from '../shared/ingredientEstimate';
+import {foods} from '../shared/food';
 import {initialMealCuisines} from '../shared/cuisines';
 import { stockToEntries } from './lib/ingredientUnits';
 import { withHouseholdMeasures } from './lib/householdMeasures';
@@ -11,10 +13,10 @@ const limiter=new RateLimiter(components.rateLimiter,{global:{kind:'fixed window
 const busy='Busy right now. Try again in a few minutes.';
 function validateToken(token:string){if(!/^[a-f0-9]{64}$/.test(token))throw new ConvexError('Open the app again to start a household.');}
 export const get=query({args:{token:v.string()},returns:v.union(v.null(),v.object({mealCuisines:mealCuisinesV,people:v.array(personV),stock:v.array(entryV),plan:v.union(planV,v.null())})),handler:async(ctx,{token})=>{
- validateToken(token);const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',token)).unique();return h?{mealCuisines:initialMealCuisines(h.people,h.mealCuisines),people:h.people,stock:stockToEntries(h.stock),plan:h.plan?withHouseholdMeasures(h.plan):null}:null;
+ validateToken(token);const custom=(await ctx.db.query('ingredientEstimates').withIndex('by_token',q=>q.eq('token',token)).take(200)).filter(r=>r.confirmed).map(r=>estimatedFood(`custom_${r._id}`,r.name,r.estimate));const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',token)).unique();return h?{mealCuisines:initialMealCuisines(h.people,h.mealCuisines),people:h.people,stock:stockToEntries(h.stock,custom),plan:h.plan?withHouseholdMeasures(h.plan,custom):null}:null;
 }});
 export const begin=internalMutation({args:{token:v.string(),people:v.array(personV),stock:v.array(stockV),mealCuisines:mealCuisinesV,generation:v.string()},returns:v.id('households'),handler:async(ctx,args)=>{
- validateToken(args.token);try{validateInputs(args.people,args.stock);}catch(e){throw new ConvexError(e instanceof Error?e.message:'Check your inputs.');}
+ validateToken(args.token);const custom=(await ctx.db.query('ingredientEstimates').withIndex('by_token',q=>q.eq('token',args.token)).take(200)).filter(r=>r.confirmed).map(r=>estimatedFood(`custom_${r._id}`,r.name,r.estimate));try{validateInputs(args.people,args.stock,[...foods,...custom]);}catch(e){throw new ConvexError(e instanceof Error?e.message:'Check your inputs.');}
  const now=Date.now();const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',args.token)).unique();
  if(h?.generation&&now-h.started<120000)throw new ConvexError(busy);
  await chargeAiCall(ctx,args.token,now);
@@ -50,3 +52,4 @@ export const migrateMealCuisines=internalMutation({args:{},returns:v.number(),ha
  const households=await ctx.db.query('households').withIndex('by_token').take(100);let updated=0;
  for(const h of households)if(!h.mealCuisines){await ctx.db.patch(h._id,{mealCuisines:initialMealCuisines(h.people)});updated++;}return updated;
 }});
+export const chargeIngredientCall=internalMutation({args:{token:v.string()},returns:v.null(),handler:async(ctx,{token})=>{validateToken(token);await chargeAiCall(ctx,token,Date.now());return null;}});
