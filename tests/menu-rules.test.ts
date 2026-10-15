@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateInputs,validateDishes } from '../shared/validation';
+import { validateInputs,validateDishes,UnsafeMenuError } from '../shared/validation';
 const people:any=[{name:'Test A',target:{protein:100,carbs:200,fat:60,fibre:30},diet:'veg',allergies:['Milk'],preferences:''}];
 const stock:any=[{id:'rice',grams:500,mustUse:false},{id:'lentils',grams:500,mustUse:false},{id:'oil',grams:100,mustUse:false},{id:'tomato',grams:500,mustUse:false}];
 const meals=['breakfast','lunch','dinner'];
 const menu=(ids:string[])=>meals.map(meal=>({meal,name:'Example dish',weight:500,macros:{protein:20,carbs:50,fat:10,fibre:5},ingredients:ids.map(id=>({id,grams:50}))})) as any;
 test('Rejects milk allergens and vegetarian conflicts before portions',()=>{
- assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','paneer']),people,stock),/Unsafe/);
- assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','chicken']),people,stock),/Unsafe/);
+ assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','paneer']),people,stock),/Milk allergy/ );
+ assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','chicken']),people,stock),/vegetarian diet/);
 });
 test('Every dish meets the 80% available ingredient rule, excluding water',()=>{
  assert.doesNotThrow(()=>validateDishes(menu(['rice','lentils','oil','tomato','spinach','water']),people,stock));
@@ -21,4 +21,16 @@ test('Invalid targets, unsupported allergies and duplicate stock cannot reach AI
  assert.throws(()=>validateInputs([{...people[0],target:{...people[0].target,protein:-1}}],stock));
  assert.throws(()=>validateInputs([{...people[0],allergies:['Mystery allergy']}],stock));
  assert.throws(()=>validateInputs(people,[...stock,stock[0]]),/duplicate/);
+});
+
+test('Unsafe menus name the exact dish, ingredient, person and every applicable reason',()=>{
+ const both=[people[0],{...people[0],name:'Test B',allergies:['Egg']}];
+ for(const [id,reason,person] of [['paneer','allergy conflict','Test A'],['chicken','diet conflict','Test A'],['mystery','unknown ingredient',null]]){
+  assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato',id as string]),both,stock),(e:unknown)=>{
+   assert.ok(e instanceof UnsafeMenuError);assert.equal(e.conflicts[0].ingredientId,id);assert.equal(e.conflicts[0].dish,'Example dish');assert.equal(e.conflicts[0].reason,reason);assert.equal(e.conflicts[0].person,person);assert.match(e.message,/No menu was saved/);return true;
+  });
+ }
+ assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','egg']),both,stock),(e:unknown)=>{
+  assert.ok(e instanceof UnsafeMenuError);assert.ok(e.conflicts.some(c=>c.person==='Test B'&&c.reason==='allergy conflict'));assert.ok(e.conflicts.some(c=>c.person==='Test B'&&c.reason==='diet conflict'));return true;
+ });
 });

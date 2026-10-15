@@ -6,7 +6,7 @@ import { Agent } from '@convex-dev/agent';
 import { NoObjectGeneratedError } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { personV,stockV,planV,entryV } from './validators';
-import { validateInputs,validateDishes } from '../shared/validation';
+import { validateInputs,validateDishes,UnsafeMenuError } from '../shared/validation';
 import { foods,allowedFood,macroKeys } from '../shared/food';
 import { calculatePlan } from './lib/portions';
 import { requestDishes } from './lib/dishRequest';
@@ -30,6 +30,7 @@ ${JSON.stringify({totals,people:args.people.map(p=>({diet:p.diet,allergies:p.all
   await ctx.runMutation(internal.households.finish,{id,generation,plan});return plan;
  }catch(e){
   await ctx.runMutation(internal.households.finish,{id,generation,plan:null});
+  if(e instanceof UnsafeMenuError){console.error('Menu safety rejection:',JSON.stringify({conflicts:e.conflicts}));throw new ConvexError(e.message);}
   const detail=e instanceof Error?e.message:'Unknown error';
   const safeDetail=detail.replaceAll(process.env.OPENAI_API_KEY??'__no_key__','[redacted]').replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,500);
   console.error('Menu generation failed:',e instanceof Error?e.name:'Unknown error',safeDetail);

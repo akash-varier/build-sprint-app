@@ -15,6 +15,20 @@ export function validateInputs(people:Person[],stock:Stock[]) {
  if(people.some(p=>macroKeys.every(k=>p.target[k]===0)))throw new Error('Enter daily targets for every person.');
  for(const s of stock){const f=foodById.get(s.id);if(!f)throw new Error('Choose ingredients from the suggestions.');if(s.mustUse&&!allowedFood(f,people))throw new Error(`${f.name} cannot be must-use because of a family allergy or dietary choice.`);}
 }
+export type IngredientConflict={dish:string;ingredientId:string;ingredient:string;person:string|null;reason:'unknown ingredient'|'diet conflict'|'allergy conflict';detail:string};
+export class UnsafeMenuError extends Error {
+ constructor(public conflicts:IngredientConflict[]){super(conflicts.map(c=>c.reason==='unknown ingredient'?`${c.dish} contains an ingredient we don’t recognise: ${c.ingredientId}.`:`${c.dish} contains ${c.ingredient}, which conflicts with ${c.person}’s ${c.detail}.`).join(' ')+' No menu was saved. Generate again.');this.name='UnsafeMenuError';}
+}
+function ingredientConflicts(dish:string,id:string,people:Person[]):IngredientConflict[]{
+ const f=foodById.get(id);
+ if(!f)return [{dish,ingredientId:id,ingredient:id,person:null,reason:'unknown ingredient',detail:'Unknown ingredient ID'}];
+ const conflicts:IngredientConflict[]=[];
+ for(const p of people){
+  if((p.diet==='veg'&&f.diet!=='veg')||(p.diet==='egg'&&f.diet==='nonveg'))conflicts.push({dish,ingredientId:id,ingredient:f.name,person:p.name,reason:'diet conflict',detail:p.diet==='veg'?'vegetarian diet':'vegetarian + eggs diet'});
+  for(const allergy of f.allergens.filter(a=>p.allergies.includes(a)))conflicts.push({dish,ingredientId:id,ingredient:f.name,person:p.name,reason:'allergy conflict',detail:`${allergy} allergy`});
+ }
+ return conflicts;
+}
 export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[]) {
  dishesSchema.parse({dishes});
  if(dishes.map(d=>d.meal).join(',')!=='breakfast,lunch,dinner')throw new Error('The menu must contain breakfast, lunch and dinner.');
@@ -23,7 +37,7 @@ export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[]) {
   if(new Set(d.ingredients.map(i=>i.id)).size!==d.ingredients.length)throw new Error('Repeated recipe ingredient.');
   const meaningful=d.ingredients.filter(i=>i.id!=='water');
   if(!meaningful.length||meaningful.filter(i=>ids.has(i.id)).length/meaningful.length<0.8)throw new Error('Too few available ingredients.');
-  for(const i of d.ingredients){const f=foodById.get(i.id);if(!f||!allowedFood(f,people))throw new Error('Unsafe ingredient in menu.');used.add(i.id);}
+  for(const i of d.ingredients){const f=foodById.get(i.id);if(!f||!allowedFood(f,people))throw new UnsafeMenuError(ingredientConflicts(d.name,i.id,people));used.add(i.id);}
   if(d.macros.fibre>d.macros.carbs||d.macros.protein+d.macros.carbs+d.macros.fat>d.weight)throw new Error('Invalid dish nutrition.');
  }
  if(stock.some(s=>s.mustUse&&!used.has(s.id)))throw new Error('A must-use ingredient was missed.');
