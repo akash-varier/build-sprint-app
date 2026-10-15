@@ -11,4 +11,4 @@
 Parked (not now):  
 \- Learning continuously from the user’s actions to understand their preferences and conditions.   
 \-Height, weight, and Goal (Calorie Surplus/ Calorie Deficit) included for assessment of macronutrient requirements.
-
+\- Per-person sides. When household diets or allergies differ, keep one shared main dish and add a small side per person to close their protein gap (e.g. curd for the vegetarian, chicken for the non-vegetarian), each side checked against that person's own diet and allergies.
