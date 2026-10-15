@@ -2,12 +2,12 @@ export const macroKeys = ['protein','carbs','fat','fibre'] as const;
 export type Macros = Record<typeof macroKeys[number], number>;
 export type Person = {name:string; target:Macros; diet:'veg'|'egg'|'nonveg'; allergies:string[]; preferences:string};
 export type Stock = {id:string; grams:number; mustUse:boolean; quantity?:number; unit?:import("./units").Unit};
-export type Dish = {meal:'breakfast'|'lunch'|'dinner';name:string;weight:number;macros:Macros;ingredients:{id:string;grams:number}[]};
+export type Dish = {role?:'main'|'staple'|'side';meal:'breakfast'|'lunch'|'dinner';name:string;weight:number;macros:Macros;ingredients:{id:string;grams:number}[]};
 export const allergyNames = ['Milk','Egg','Wheat / gluten','Soy','Peanut','Tree nuts','Sesame','Fish','Shellfish'] as const;
 export type Food = {id:string;name:string;diet:Person['diet'];allergens:string[]};
 const food=(id:string,name:string,diet:Person['diet']='veg',allergens:string[]=[]):Food=>({id,name,diet,allergens});
 export const foods:Food[] = [
- food('rice','Rice'),food('oats','Certified gluten-free oats'),food('atta','Whole wheat flour','veg',['Wheat / gluten']),
+ food('bread','Plain bread (milk/egg-free)','veg',['Wheat / gluten']),food('pasta','Egg-free pasta','veg',['Wheat / gluten']),food('rice','Rice'),food('oats','Certified gluten-free oats'),food('atta','Whole wheat flour','veg',['Wheat / gluten']),
  food('lentils','Lentils / dal'),food('chickpeas','Chickpeas'),food('rajma','Kidney beans'),food('moong','Moong beans'),
  food('paneer','Paneer','veg',['Milk']),food('tofu','Tofu','veg',['Soy']),food('milk','Milk','veg',['Milk']),food('curd','Curd','veg',['Milk']),
  food('egg','Egg','egg',['Egg']),food('chicken','Chicken','nonveg'),food('fish','Fish','nonveg',['Fish']),

@@ -1,9 +1,9 @@
 export const units=['pieces','bunch','cup','katori','g','kg','ml','L'] as const;
 export type Unit=typeof units[number];
 export type FridgeEntry={id:string;quantity:number;unit:Unit;mustUse:boolean};
-const pieceFoods=new Set(['egg','potato','tomato','onion','carrot','capsicum','cauliflower','broccoli','banana','apple','lemon','cucumber']);
+const pieceFoods=new Set(['bread','egg','potato','tomato','onion','carrot','capsicum','cauliflower','broccoli','banana','apple','lemon','cucumber']);
 const bunchFoods=new Set(['spinach']);
-const cupFoods=new Set(['rice','oats','atta','lentils','chickpeas','rajma','moong','peas']);
+const cupFoods=new Set(['pasta','rice','oats','atta','lentils','chickpeas','rajma','moong','peas']);
 const liquidFoods=new Set(['milk','oil','water']);
 export function defaultUnit(id:string):Unit {
  if(pieceFoods.has(id))return 'pieces';if(bunchFoods.has(id))return 'bunch';if(cupFoods.has(id))return 'cup';

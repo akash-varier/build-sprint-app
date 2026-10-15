@@ -1,11 +1,16 @@
 import { z } from 'zod';
-import { allergyNames, allowedFood, foodById, macroKeys, type Person, type Stock, type Dish } from './food';
+import { allergyNames, foods, allowedFood, foodById, macroKeys, type Person, type Stock, type Dish } from './food';
 import { units,supportedUnits,type FridgeEntry } from './units';
 const number=z.number().finite().nonnegative();
 export const macrosSchema=z.object({protein:number,carbs:number,fat:number,fibre:number}).strict();
 export const peopleSchema=z.array(z.object({name:z.string().trim().min(1).max(40),target:macrosSchema,diet:z.enum(['veg','egg','nonveg']),allergies:z.array(z.enum(allergyNames)).max(9),preferences:z.string().trim().max(100)}).strict()).min(1).max(6);
-export const stockSchema=z.array(z.object({id:z.string().max(60),grams:z.number().finite().positive().max(100000),mustUse:z.boolean(),quantity:z.number().optional(),unit:z.enum(units).optional()}).strict()).min(1).max(38);
-export const dishesSchema=z.object({dishes:z.array(z.object({meal:z.enum(['breakfast','lunch','dinner']),name:z.string().min(1).max(80),weight:z.number().finite().positive().max(15000),macros:macrosSchema,ingredients:z.array(z.object({id:z.string(),grams:z.number().finite().positive().max(15000)}).strict()).min(1).max(12)}).strict()).length(3)}).strict();
+export const stockSchema=z.array(z.object({id:z.string().max(60),grams:z.number().finite().positive().max(100000),mustUse:z.boolean(),quantity:z.number().optional(),unit:z.enum(units).optional()}).strict()).min(1).max(foods.length);
+const dishSchema=z.object({meal:z.enum(['breakfast','lunch','dinner']),role:z.enum(['main','staple','side']).optional(),name:z.string().min(1).max(80),weight:z.number().finite().positive().max(15000),macros:macrosSchema,ingredients:z.array(z.object({id:z.string(),grams:z.number().finite().positive().max(15000)}).strict()).min(1).max(12)}).strict();
+// Legacy three-dish plans remain readable. New AI requests require item roles.
+export const dishesSchema=z.object({dishes:z.array(dishSchema).min(3).max(9)}).strict();
+export const menuItemsSchema=z.object({dishes:z.array(dishSchema.extend({role:z.enum(['main','staple','side'])})).min(6).max(9)}).strict();
+export const mealNames=['breakfast','lunch','dinner'] as const;
+export const stapleIds=new Set(['bread','pasta','rice','potato','oats','atta']);
 export function validateInputs(people:Person[],stock:Stock[]) {
  if(!peopleSchema.safeParse(people).success)throw new Error('Enter names, valid daily targets, and supported allergies for 1–6 people.');
  if(!stockSchema.safeParse(stock).success)throw new Error('Add at least one ingredient with a quantity greater than zero.');
@@ -31,7 +36,17 @@ function ingredientConflicts(dish:string,id:string,people:Person[]):IngredientCo
 }
 export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[]) {
  dishesSchema.parse({dishes});
- if(dishes.map(d=>d.meal).join(',')!=='breakfast,lunch,dinner')throw new Error('The menu must contain breakfast, lunch and dinner.');
+ const legacy=dishes.length===3&&dishes.every(d=>d.role===undefined);
+ if(legacy){if(dishes.map(d=>d.meal).join(',')!=='breakfast,lunch,dinner')throw new Error('The menu must contain breakfast, lunch and dinner.');}
+ else {
+  menuItemsSchema.parse({dishes});
+  for(const meal of mealNames){const items=dishes.filter(d=>d.meal===meal);
+   if(items.length<2||items.length>3||items.filter(d=>d.role==='main').length!==1||items.filter(d=>d.role==='staple').length!==1||items.filter(d=>d.role==='side').length>1)throw new Error('Each meal needs one main, one staple and at most one side.');
+   const staple=items.find(d=>d.role==='staple')!;
+   if(!staple.ingredients.some(i=>stapleIds.has(i.id)&&stock.some(s=>s.id===i.id)))throw new Error('Choose a staple ingredient available in the fridge.');
+  }
+ }
+
  const ids=new Set(stock.map(s=>s.id));const used=new Set<string>();
  for(const d of dishes){
   if(new Set(d.ingredients.map(i=>i.id)).size!==d.ingredients.length)throw new Error('Repeated recipe ingredient.');
@@ -44,7 +59,7 @@ export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[]) {
 }
 
 export function validateFridgeInputs(people:Person[],entries:FridgeEntry[]) {
- const schema=z.array(z.object({id:z.string(),quantity:z.number().finite().positive(),unit:z.enum(units),mustUse:z.boolean()}).strict()).min(1).max(38);
+ const schema=z.array(z.object({id:z.string(),quantity:z.number().finite().positive(),unit:z.enum(units),mustUse:z.boolean()}).strict()).min(1).max(foods.length);
  if(!schema.safeParse(entries).success)throw new Error('Add ingredients with quantities greater than zero.');
  for(const e of entries)if(!supportedUnits(e.id).includes(e.unit))throw new Error('Choose a supported ingredient unit.');
  // Shared identity and family checks; actual quantities are validated in Convex.
