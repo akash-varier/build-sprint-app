@@ -21,7 +21,7 @@ test('Bread caps use ingredient slices even when a bread item includes vegetable
  const bread={...items[0],name:'Vegetable toast',weight:500,ingredients:[{id:'bread',grams:300},{id:'tomato',grams:100}]};
  assert.equal(servingCap(bread),200);
 });
-test('Meals require one main, one stocked staple and at most one side',()=>{
+test('Meals require one main, one staple and at most one side',()=>{
  assert.doesNotThrow(()=>validateDishes(items,people,stock));
  assert.throws(()=>validateDishes(items.filter((_:any,i:number)=>i!==1),people,stock));
  assert.throws(()=>validateDishes(items.map((x:any,i:number)=>i===1?{...x,role:'main'}:x),people,stock));
@@ -37,4 +37,18 @@ test('Scaling raw batch ingredients preserves the exact egg cap after portions a
  const selected=items.map((x:any)=>x.role==='main'?{...x,weight:890,ingredients:[{id:'egg',grams:400},{id:'tomato',grams:100}]}:x);
  const plan=calculatePlan(selected,[people[0],{...people[0],name:'Test B',target:{protein:130,carbs:318,fat:85,fibre:30}}],stock);
  for(let j=0;j<selected.length;j++){const d=plan.dishes[j];if(d.weight===0)continue;for(const p of plan.people){const eggs=d.ingredients.filter(i=>i.id==='egg').reduce((sum,i)=>sum+i.grams,0)*p.portions[j].grams/d.weight;assert.ok(eggs<=200+1e-8);}}
+});
+
+test('Cuisine staples may be missing when their item still meets 80% fridge coverage',()=>{
+ const selected=items.map((d:any)=>d.role==='staple'?{...d,name:'Vegetable pasta',ingredients:[{id:'pasta',grams:100},{id:'egg',grams:20},{id:'tomato',grams:20},{id:'onion',grams:20},{id:'spinach',grams:20}]}:d);
+ const available=[...stock,{id:'onion',grams:100,mustUse:false},{id:'spinach',grams:100,mustUse:false}];
+ const choices={breakfast:'Continental',lunch:'Continental',dinner:'Continental'} as const;
+ assert.doesNotThrow(()=>validateDishes(selected,people,available,choices));
+ assert.throws(()=>validateDishes(selected,people,available,{...choices,lunch:'Indian'}));
+ assert.ok(calculatePlan(selected,people,available).ingredients.find(i=>i.id==='pasta')!.shortage>0);
+});
+test('Rotis stay within four across multiple items in a meal',()=>{
+ const selected=items.map((d:any)=>({...d,name:'Rotis',ingredients:[{id:'atta',grams:200}]}));
+ const plan=calculatePlan(selected,[{...people[0],target:{protein:400,carbs:800,fat:250,fibre:100}}],[]);
+ for(const meal of ['breakfast','lunch','dinner'])assert.ok(selected.reduce((sum:number,d:any,i:number)=>sum+(d.meal===meal?plan.people[0].portions[i].grams:0),0)<=160+1e-8);
 });

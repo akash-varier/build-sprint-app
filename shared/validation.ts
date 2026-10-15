@@ -1,3 +1,4 @@
+import type {MealCuisines} from './cuisines';
 import { z } from 'zod';
 import { allergyNames, foods, allowedFood, foodById, macroKeys, type Person, type Stock, type Dish } from './food';
 import { units,supportedUnits,type FridgeEntry } from './units';
@@ -34,7 +35,7 @@ function ingredientConflicts(dish:string,id:string,people:Person[]):IngredientCo
  }
  return conflicts;
 }
-export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[]) {
+export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[],mealCuisines?:MealCuisines) {
  dishesSchema.parse({dishes});
  const legacy=dishes.length===3&&dishes.every(d=>d.role===undefined);
  if(legacy){if(dishes.map(d=>d.meal).join(',')!=='breakfast,lunch,dinner')throw new Error('The menu must contain breakfast, lunch and dinner.');}
@@ -43,7 +44,8 @@ export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[]) {
   for(const meal of mealNames){const items=dishes.filter(d=>d.meal===meal);
    if(items.length<2||items.length>3||items.filter(d=>d.role==='main').length!==1||items.filter(d=>d.role==='staple').length!==1||items.filter(d=>d.role==='side').length>1)throw new Error('Each meal needs one main, one staple and at most one side.');
    const staple=items.find(d=>d.role==='staple')!;
-   if(!staple.ingredients.some(i=>stapleIds.has(i.id)&&stock.some(s=>s.id===i.id)))throw new Error('Choose a staple ingredient available in the fridge.');
+   const compatible=mealCuisines?(mealCuisines[meal]==='Indian'?new Set(['rice','atta']):new Set(['bread','pasta','potato'])):stapleIds;
+   if(!staple.ingredients.some(i=>compatible.has(i.id)))throw new Error('Choose a staple matching the meal cuisine.');
   }
  }
 

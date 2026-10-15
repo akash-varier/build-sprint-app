@@ -99,3 +99,5 @@
 
 10. Screen: 
 
+
+Milestone 1 targets and menu update: In the temporary Family targets section on Fridge update, show household Breakfast, Lunch and Dinner cuisine pickers (Indian, Continental), saving each choice and restoring it on return. Initialise all three from existing personal cuisine text, preserving that text under the renamed “Likes or dislikes” field. This section moves to onboarding later. Menu shows each meal’s cuisine, main, staple and optional side, household measures first and grams small, and combined meal nutrition per person. Indian staples: rotis/rice; Continental: bread/toast/pasta/potatoes. Rotis and bread each cap at four per person per meal. Missing staples follow the existing 80% fridge rule, with all shortages shown on Ingredients as “need X more”; no fallback or blocking step.

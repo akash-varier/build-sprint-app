@@ -1,3 +1,4 @@
+import type {MealCuisines} from '../../shared/cuisines';
 import {naturalAmount} from './ingredientUnits';
 import {mealCheck,mealTotals,servingSizes} from './portions';
 import { withinMacroTolerance } from '../../shared/food';
@@ -25,5 +26,5 @@ function itemMeasure(dish:StoredPlan['dishes'][number],grams:number){
 export function withHouseholdMeasures(plan:StoredPlan){
  return {...plan,servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams),availableMeasure:naturalAmount(i.id,i.available),shortageMeasure:naturalAmount(i.id,i.shortage)})),people:plan.people.map(p=>({...p,withinTolerance:withinMacroTolerance(p.gaps),meals:mealTotals(plan.dishes,p.portions,p.target),portions:p.portions.map((portion,j)=>({...portion,mealCheck:mealCheck(portion.macros,p.target),measure:itemMeasure(plan.dishes[j],portion.grams)}))}))};
 }
-export type StoredPlan=Omit<MealPlan,'people'> & {people:(Omit<MealPlan['people'][number],'portions'|'meals'> & {meals?:MealPlan['people'][number]['meals']} & {portions:{grams:number;macros:MealPlan['people'][number]['total'];measure?:string;mealCheck?:ReturnType<typeof mealCheck>}[]})[]};
+export type StoredPlan=Omit<MealPlan,'people'> & {mealCuisines?:MealCuisines} & {people:(Omit<MealPlan['people'][number],'portions'|'meals'> & {meals?:MealPlan['people'][number]['meals']} & {portions:{grams:number;macros:MealPlan['people'][number]['total'];measure?:string;mealCheck?:ReturnType<typeof mealCheck>}[]})[]};
 export type DisplayPlan=ReturnType<typeof withHouseholdMeasures>;
