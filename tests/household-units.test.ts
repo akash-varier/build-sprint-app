@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toGrams,normalizeStock,stockToEntries,changeEntryUnit } from '../convex/lib/ingredientUnits';
+import { toGrams,normalizeStock,stockToEntries,changeEntryUnit,naturalAmount } from '../convex/lib/ingredientUnits';
 import { portionMeasure,withHouseholdMeasures } from '../convex/lib/householdMeasures';
 import { newFridgeEntry } from '../shared/units';
 import { calculatePlan } from '../convex/lib/portions';
@@ -33,6 +33,16 @@ test('Household labels are presentation only; portions, macros and gaps remain i
  const dishes=['breakfast','lunch','dinner'].map(meal=>({meal,name:'Dal',weight:500,macros,ingredients:[{id:'lentils',grams:100}]})) as any;
  const plan=calculatePlan(dishes,[{name:'Test',target:{protein:60,carbs:180,fat:30,fibre:30},diet:'veg',allergies:[],preferences:''}],[]);
  const before=JSON.stringify(plan);const display=withHouseholdMeasures(plan);assert.equal(JSON.stringify(plan),before);
- const stripped={...display,people:display.people.map(p=>({...p,portions:p.portions.map(({measure,...portion})=>portion)}))};
+ const {servingCapsApplied,...withoutFlag}=display;assert.equal(servingCapsApplied,true);
+ const stripped={...withoutFlag,ingredients:display.ingredients.map(({measure,availableMeasure,shortageMeasure,...i})=>i),people:display.people.map(p=>({...p,portions:p.portions.map(({measure,...portion})=>portion)}))};
  assert.deepEqual(stripped,plan);
+});
+
+test('Ingredients use the same raw conversions and round pieces up, never reducing required grams',()=>{
+ assert.equal(naturalAmount('egg',201),'5 pieces');assert.equal(naturalAmount('tomato',121),'2 pieces');assert.equal(naturalAmount('rice',370),'2 cups');assert.equal(naturalAmount('lentils',192),'1 cup');assert.equal(naturalAmount('spinach',150),'1.5 bunches');assert.equal(naturalAmount('egg',0),'0 pieces');
+});
+test('Saved menus from before serving caps are clearly marked for regeneration',()=>{
+ const macros={protein:20,carbs:60,fat:10,fibre:10};const dishes=['breakfast','lunch','dinner'].map(meal=>({meal,name:'Dal',weight:500,macros,ingredients:[{id:'lentils',grams:100}]})) as any;
+ const plan=calculatePlan(dishes,[{name:'Test',target:{protein:60,carbs:180,fat:30,fibre:30},diet:'veg',allergies:[],preferences:''}],[]);
+ const legacy={...plan,people:plan.people.map(p=>({...p,portions:p.portions.map(({mealCheck,...portion})=>portion)}))};assert.equal(withHouseholdMeasures(legacy).servingCapsApplied,false);
 });

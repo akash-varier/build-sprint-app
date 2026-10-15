@@ -32,3 +32,9 @@ export function unitHint(id:string,unit:Unit):string{
  const grams=Math.round(factor(id,unit)*10)/10;
  return `Approx. ${grams} g per ${unit==='pieces'?'piece':unit}. ${unit==='cup'?'Cup: 240 ml.':unit==='katori'?'Katori: 150 ml.':''}`.trim();
 }
+
+export function naturalAmount(id:string,grams:number):string {
+ const unit=defaultUnit(id);const quantity=grams/factor(id,unit);
+ const amount=unit==='pieces'?Math.ceil(quantity-1e-9):Math.ceil(quantity*100-1e-9)/100;
+ return `${amount} ${unit==='pieces'&&amount===1?'piece':unit==='bunch'&&amount!==1?'bunches':unit==='cup'&&amount!==1?'cups':unit}`;
+}

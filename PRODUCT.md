@@ -155,3 +155,11 @@ What this supports: It can propose a shared menu with different portions for two
 
 
 
+
+
+V1 portion and ingredient rules:
+- Ingredients lead with natural raw units using the Fridge conversion references. Eggs and tomatoes round up to whole pieces; rice and dal use cups; spinach uses bunches. Show exact calculated raw grams in smaller text. Display rounding never changes cooking quantities or nutrition.
+- Each meal aims for 25–40% of each person's daily protein, carbs, fat and fibre target. Serving caps are hard limits; meal ranges may be missed when impossible. Convex first minimises the largest meal-range miss (as a share of the daily target), then fits daily totals within the remaining feasible portions. Show signed per-macro meal range gaps and daily actual-minus-target gaps.
+- Per person per meal: at most 4 eggs (200 g raw egg), 2 cups cooked rice (316 g), and 3 katoris of any single dish (450 g). Conservatively apply the 316 g limit to the entire rice-containing dish. Caps are checked in Convex from ingredient quantities and cooked batch weights. Never enlarge a portion beyond a cap to close a gap. No minimum serving may override a cap.
+- If daily gaps exceed ±5 g or meal ranges are missed, allow one AI replacement attempt for different dishes and ingredient mixes, not resized copies. Keep the better safe capped plan. At most two AI calls per generation; every call, including the replacement, counts against existing global and household limits. If the replacement fails or cannot be charged, retain the first safe capped menu and show its gaps.
+- Preserve the ±5 g daily pass check and all existing diet/allergy rules. Dishes remain shared: every ingredient must be allowed for every person. Dairy and meat cannot be used as person-specific additions in this milestone. AI still returns whole-dish weights/macros; only Convex calculates portions.

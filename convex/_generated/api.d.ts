@@ -12,6 +12,7 @@ import type * as households from "../households.js";
 import type * as lib_dishRequest from "../lib/dishRequest.js";
 import type * as lib_householdMeasures from "../lib/householdMeasures.js";
 import type * as lib_ingredientUnits from "../lib/ingredientUnits.js";
+import type * as lib_menuFit from "../lib/menuFit.js";
 import type * as lib_portions from "../lib/portions.js";
 import type * as menu from "../menu.js";
 import type * as units from "../units.js";
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   "lib/dishRequest": typeof lib_dishRequest;
   "lib/householdMeasures": typeof lib_householdMeasures;
   "lib/ingredientUnits": typeof lib_ingredientUnits;
+  "lib/menuFit": typeof lib_menuFit;
   "lib/portions": typeof lib_portions;
   menu: typeof menu;
   units: typeof units;

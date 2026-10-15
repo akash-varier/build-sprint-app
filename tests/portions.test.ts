@@ -9,10 +9,11 @@ const dishes = [
 ] as any;
 const person=(name:string,target:any)=>({name,target,diet:'veg',allergies:[],preferences:''});
 test('Convex portions meet different individual targets and cooking totals equal their portions',()=>{
- const result=calculatePlan(dishes,[person('Test A',macros(120,140,50,30)),person('Test B',macros(60,70,25,15))],[]);
+ const balanced=dishes.map(d=>({...d,weight:300,macros:macros(40,140/3,50/3,10)}));
+ const result=calculatePlan(balanced,[person('Test A',macros(120,140,50,30)),person('Test B',macros(60,70,25,15))],[]);
  assert.ok(result.people.every(p=>p.withinTolerance));
  for(let j=0;j<3;j++) assert.ok(Math.abs(result.dishes[j].weight-result.people.reduce((s,p)=>s+p.portions[j].grams,0))<0.01);
- assert.equal(result.dishes[0].ingredients[0].grams,150);
+ assert.equal(result.dishes[0].ingredients[0].grams,Math.round(result.dishes[0].weight/3*10)/10);
 });
 test('Impossible targets show real gaps instead of claiming success',()=>{
  const result=calculatePlan(dishes,[person('Test A',macros(180,10,5,2))],[]);
@@ -20,7 +21,7 @@ test('Impossible targets show real gaps instead of claiming success',()=>{
  assert.ok(Object.values(result.people[0].gaps).some(g=>Math.abs(g)>5));
 });
 test('Ingredient shortages consider quantities across all meals',()=>{
- const repeated=dishes.map((d:any)=>({...d,ingredients:[{id:'oats',grams:100}]}));
+ const repeated=dishes.map((d:any)=>({...d,weight:300,macros:macros(40,140/3,50/3,10),ingredients:[{id:'oats',grams:100}]}));
  const result=calculatePlan(repeated,[person('Test A',macros(120,140,50,30))],[{id:'oats',grams:120,mustUse:false}]);
  assert.equal(result.ingredients[0].grams,300);
  assert.equal(result.ingredients[0].shortage,180);
@@ -33,9 +34,9 @@ test('Daily totals are calculated from displayed portion weights, not rounded ma
   assert.ok(Math.abs(result.people[0].gaps[key]-(expected-result.people[0].target[key]))<1e-8);
  }
 });
-test('Portions stay within the declared 50–1000 g range even for incompatible targets',()=>{
+test('Portions never exceed 3 katoris even for incompatible targets',()=>{
  const result=calculatePlan(dishes,[person('Test A',macros(400,800,250,100))],[]);
- assert.ok(result.people[0].portions.every(p=>p.grams>=50&&p.grams<=1000));
+ assert.ok(result.people[0].portions.every(p=>p.grams>=0&&p.grams<=450));
 });
 
 test('V1 tolerance accepts both signs at 5 g and rejects any macro over 5 g',async()=>{
