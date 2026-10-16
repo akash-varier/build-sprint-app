@@ -6,7 +6,8 @@ const number=z.number().finite().nonnegative();
 export const macrosSchema=z.object({protein:number,carbs:number,fat:number,fibre:number}).strict();
 export const peopleSchema=z.array(z.object({name:z.string().trim().min(1).max(40),target:macrosSchema,diet:z.enum(['veg','egg','nonveg']),allergies:z.array(z.enum(allergyNames)).max(9),preferences:z.string().trim().max(100)}).strict()).min(1).max(6);
 export const stockSchema=z.array(z.object({id:z.string().max(60),grams:z.number().finite().positive().max(100000),mustUse:z.boolean(),quantity:z.number().optional(),unit:z.enum(units).optional()}).strict()).min(1).max(240);
-const dishSchema=z.object({meal:z.enum(['breakfast','lunch','dinner']),role:z.enum(['main','staple','side']).optional(),name:z.string().min(1).max(80),weight:z.number().finite().positive().max(15000),macros:macrosSchema,ingredients:z.array(z.object({id:z.string(),grams:z.number().finite().positive().max(15000)}).strict()).min(1).max(12)}).strict();
+export const dishSchema=z.object({meal:z.enum(['breakfast','lunch','dinner']),role:z.enum(['main','staple','side']).optional(),name:z.string().min(1).max(80),weight:z.number().finite().positive().max(15000),macros:macrosSchema,ingredients:z.array(z.object({id:z.string(),grams:z.number().finite().positive().max(15000)}).strict()).min(1).max(12)}).strict();
+export const singleDishSchema=dishSchema.extend({role:z.enum(['main','staple','side'])});
 // Legacy three-dish plans remain readable. New AI requests require item roles.
 export const dishesSchema=z.object({dishes:z.array(dishSchema).min(3).max(9)}).strict();
 export const menuItemsSchema=z.object({dishes:z.array(dishSchema.extend({role:z.enum(['main','staple','side'])})).min(6).max(9)}).strict();

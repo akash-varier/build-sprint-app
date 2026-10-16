@@ -13,3 +13,6 @@ export const planV=v.object({mealCuisines:v.optional(mealCuisinesV),servingCapsA
 
 export const estimateV=v.object({protein:v.number(),carbs:v.number(),fat:v.number(),fibre:v.number(),calories:v.number(),unit:v.union(v.literal('pieces'),v.literal('katori'),v.literal('g')),gramsPerUnit:v.number(),diet:v.union(v.literal('veg'),v.literal('egg'),v.literal('nonveg')),allergens:v.array(v.string()),uncertainAllergens:v.array(v.string()),note:v.string()});
 export const customFoodV=v.object({id:v.string(),name:v.string(),diet:v.union(v.literal('veg'),v.literal('egg'),v.literal('nonveg')),allergens:v.array(v.string()),estimate:estimateV});
+export const decisionV=v.object({state:v.union(v.literal('pending'),v.literal('accepted'),v.literal('rejected')),reason:v.optional(v.string())});
+export const rejectionV=v.object({index:v.number(),dish:v.string(),reason:v.string(),at:v.number()});
+export const reviewViewV=v.object({dishKey:v.string(),states:v.array(decisionV),history:v.array(rejectionV),allAccepted:v.boolean(),submitted:v.boolean(),replacing:v.boolean()});

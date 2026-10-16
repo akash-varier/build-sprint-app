@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as dishReplacement from "../dishReplacement.js";
 import type * as households from "../households.js";
 import type * as ingredientAI from "../ingredientAI.js";
 import type * as ingredients from "../ingredients.js";
@@ -16,7 +17,9 @@ import type * as lib_householdMeasures from "../lib/householdMeasures.js";
 import type * as lib_ingredientUnits from "../lib/ingredientUnits.js";
 import type * as lib_menuFit from "../lib/menuFit.js";
 import type * as lib_portions from "../lib/portions.js";
+import type * as lib_replaceDish from "../lib/replaceDish.js";
 import type * as menu from "../menu.js";
+import type * as reviews from "../reviews.js";
 import type * as units from "../units.js";
 import type * as validators from "../validators.js";
 
@@ -27,6 +30,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  dishReplacement: typeof dishReplacement;
   households: typeof households;
   ingredientAI: typeof ingredientAI;
   ingredients: typeof ingredients;
@@ -35,7 +39,9 @@ declare const fullApi: ApiFromModules<{
   "lib/ingredientUnits": typeof lib_ingredientUnits;
   "lib/menuFit": typeof lib_menuFit;
   "lib/portions": typeof lib_portions;
+  "lib/replaceDish": typeof lib_replaceDish;
   menu: typeof menu;
+  reviews: typeof reviews;
   units: typeof units;
   validators: typeof validators;
 }>;
