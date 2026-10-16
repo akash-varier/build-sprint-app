@@ -44,10 +44,10 @@ export function naturalAmount(id:string,grams:number,custom:CustomFood[]=[]):str
 
 // Menu-only display: these rounded references never feed portions or cooking grams.
 const kitchenFractions=[0,1/4,1/3,1/2,3/4,1];
-function kitchenNumber(n:number){
- const whole=Math.floor(n),fraction=kitchenFractions.reduce((best,f)=>Math.abs(f-(n-whole))<Math.abs(best-(n-whole))?f:best,0);
+function kitchenNumber(n:number,fractions=kitchenFractions){
+ const whole=Math.floor(n),fraction=fractions.reduce((best,f)=>Math.abs(f-(n-whole))<Math.abs(best-(n-whole))?f:best,0);
  if(fraction===1)return String(whole+1);
- const glyph=fraction===1/4?'¼':fraction===1/3?'⅓':fraction===1/2?'½':fraction===3/4?'¾':'';
+ const glyph=fraction===1/8?'⅛':fraction===1/4?'¼':fraction===1/3?'⅓':fraction===1/2?'½':fraction===3/4?'¾':'';
  return `${whole||!glyph?whole:''}${glyph}`;
 }
 function spoonAmount(cups:number){
@@ -76,6 +76,10 @@ export function menuIngredientAmount(id:string,grams:number,custom:CustomFood[]=
   if(cup&&f.estimate.unit==='katori')cup=f.estimate.gramsPerUnit*240/150;
  }
  const cupType=chopped||(!f&&(['milk','curd','potato','carrot','peas','capsicum','cauliflower','broccoli','cucumber'].includes(id)||defaultUnit(id)==='cup'))||!!f&&!!cup;
- if(cupType&&cup){const n=kitchenNumber(Math.max(.25,grams/cup));return `About ${n} ${['¼','⅓','½','¾','1'].includes(n)?'cup':'cups'}`;}
+ if(cupType&&cup){
+  const cups=grams/cup;
+  if(cups<1/8)return `About ${kitchenNumber(Math.round(cups*16*2)/2)} tbsp`;
+  const n=kitchenNumber(cups,[0,1/8,1/4,1/3,1/2,3/4,1]);return `About ${n} ${['⅛','¼','⅓','½','¾','1'].includes(n)?'cup':'cups'}`;
+ }
  return naturalAmount(id,grams,custom);
 }
