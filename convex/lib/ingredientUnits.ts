@@ -58,12 +58,24 @@ function spoonAmount(cups:number){
 export function menuIngredientAmount(id:string,grams:number,custom:CustomFood[]=[]):string{
  if(grams===0)return naturalAmount(id,grams,custom);
  const f=custom.find(f=>f.id===id),name=f?.name.toLowerCase()??foodById.get(id)?.name.toLowerCase()??id;
- if(id==='spinach'||/\b(spinach|methi|coriander|cilantro|mint|parsley|dill|basil|herbs?)\b/.test(name)){
-  if(grams<37.5)return grams<=25?'About a handful':`About ${kitchenNumber(grams/25)} handfuls`;
+ if(id==='spinach'||/\b(spinach|methi|coriander leaves|cilantro|mint|parsley|dill|basil|herbs?)\b/.test(name)){
+  if(grams<37.5)return 'About a handful';
   const bunches=Math.max(.5,Math.round(grams/100*2)/2);return `About ${kitchenNumber(bunches)} ${bunches<=1?'bunch':'bunches'}`;
  }
- if(id==='oil'||/\boil\b/.test(name))return spoonAmount(grams/cupGrams.oil);
- const cup=f?undefined:defaultUnit(id)==='cup'?cupGrams[id]:undefined;
- if(cup){const cups=grams/cup;return cups<.25?spoonAmount(cups):`About ${kitchenNumber(cups)} ${Math.abs(cups-1)<.125?'cup':'cups'}`;}
+ if(['oil','ghee'].includes(id)||/\b(oil|ghee|butter)\b/.test(name))return spoonAmount(grams/(cupGrams[id]??(name.includes('butter')?227:220.8)));
+ if(['ginger','garlic','cumin','turmeric','salt'].includes(id)||/\b(spices?|salt|sugar|paste|powder|pepper|chilli|chili|cumin|turmeric|masala|coriander seeds?)\b/.test(name)){
+  const cups=grams/(cupGrams[id]??(name.includes('sugar')?200:120));return cups*48<.125?'About a pinch':spoonAmount(cups);
+ }
+ const chopped=/\b(chopped|diced|sliced|grated)\b/.test(name);
+ const count=['onion','tomato','egg','bread','banana','apple','lemon'].includes(id)||f?.estimate.unit==='pieces';
+ if(count&&!chopped){const each=f?.estimate.gramsPerUnit??pieceGrams[id],n=Math.max(.5,Math.round(grams/each*2)/2);return `About ${kitchenNumber(n)} ${id==='bread'?(n<=1?'slice':'slices'):n<=1?'piece':'pieces'}`;}
+ let cup=cupGrams[id];
+ if(f){
+  const reference=/\b(dal|lentils?|chana|chickpeas?|rajma|beans?|moong)\b/.test(name)?'lentils':/\b(atta|flour|maida)\b/.test(name)?'atta':/\b(rice|grains?|sooji|semolina|quinoa|millet|ragi|jowar|bajra|poha|daliya|oats|wheat|barley|corn)\b/.test(name)?'rice':/\b(milk)\b/.test(name)?'milk':/\b(curd|yogurt|yoghurt)\b/.test(name)?'curd':/\b(tomato|onion|carrot|broccoli|cauliflower|peas|potato|capsicum|cucumber)\b/.exec(name)?.[0];
+  cup=reference?cupGrams[reference]:chopped?150:0;
+  if(cup&&f.estimate.unit==='katori')cup=f.estimate.gramsPerUnit*240/150;
+ }
+ const cupType=chopped||(!f&&(['milk','curd','potato','carrot','peas','capsicum','cauliflower','broccoli','cucumber'].includes(id)||defaultUnit(id)==='cup'))||!!f&&!!cup;
+ if(cupType&&cup){const n=kitchenNumber(Math.max(.25,grams/cup));return `About ${n} ${['¼','⅓','½','¾','1'].includes(n)?'cup':'cups'}`;}
  return naturalAmount(id,grams,custom);
 }
