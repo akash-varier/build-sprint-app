@@ -1,4 +1,4 @@
-import type {MealCuisines} from './cuisines';
+import {cuisineStaples,type MealCuisines} from './cuisines';
 import { z } from 'zod';
 import { allergyNames, foods, allowedFood, foodById, macroKeys, type Food, type Person, type Stock, type Dish } from './food';
 import { units,supportedUnits,type FridgeEntry } from './units';
@@ -45,7 +45,7 @@ export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[],mealC
   for(const meal of mealNames){const items=dishes.filter(d=>d.meal===meal);
    if(items.length<2||items.length>3||items.filter(d=>d.role==='main').length!==1||items.filter(d=>d.role==='staple').length!==1||items.filter(d=>d.role==='side').length>1)throw new Error('Each meal needs one main, one staple and at most one side.');
    const staple=items.find(d=>d.role==='staple')!;
-   const compatible=mealCuisines?(mealCuisines[meal]==='Indian'?new Set(['rice','atta']):new Set(['bread','pasta','potato'])):stapleIds;
+   const compatible=mealCuisines?new Set(cuisineStaples[mealCuisines[meal]]):stapleIds;
    if(!staple.ingredients.some(i=>compatible.has(i.id)))throw new Error('Choose a staple matching the meal cuisine.');
   }
  }

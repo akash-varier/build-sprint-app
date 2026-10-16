@@ -33,7 +33,7 @@ test('Household labels are presentation only; portions, macros and gaps remain i
  const dishes=['breakfast','lunch','dinner'].map(meal=>({meal,name:'Dal',weight:500,macros,ingredients:[{id:'lentils',grams:100}]})) as any;
  const plan=calculatePlan(dishes,[{name:'Test',target:{protein:60,carbs:180,fat:30,fibre:30},diet:'veg',allergies:[],preferences:''}],[]);
  const before=JSON.stringify(plan);const display=withHouseholdMeasures(plan);assert.equal(JSON.stringify(plan),before);
- const {servingCapsApplied,...withoutFlag}=display;assert.equal(servingCapsApplied,true);
+ const {servingCapsApplied,dishIngredientMeasures,...withoutFlag}=display;assert.equal(servingCapsApplied,true);
  const stripped={...withoutFlag,ingredients:display.ingredients.map(({measure,availableMeasure,shortageMeasure,...i})=>i),people:display.people.map(p=>({...p,portions:p.portions.map(({measure,...portion})=>portion)}))};
  assert.deepEqual(stripped,plan);
 });
@@ -46,3 +46,5 @@ test('Saved menus from before serving caps are clearly marked for regeneration',
  const plan=calculatePlan(dishes,[{name:'Test',target:{protein:60,carbs:180,fat:30,fibre:30},diet:'veg',allergies:[],preferences:''}],[]);
  const legacy={...plan,people:plan.people.map(p=>({...p,portions:p.portions.map(({mealCheck,...portion})=>portion)}))};assert.equal(withHouseholdMeasures(legacy).servingCapsApplied,false);
 });
+
+test('Every dish ingredient uses the same Convex measure as Ingredients without changing recipe grams',()=>{const macros={protein:20,carbs:60,fat:10,fibre:10};const dishes=['breakfast','lunch','dinner'].map(meal=>({meal,name:'Vegetable rice',weight:500,macros,ingredients:[{id:'rice',grams:185},{id:'tomato',grams:121},{id:'spinach',grams:50},{id:'bread',grams:60}]})) as any;const plan=calculatePlan(dishes,[{name:'Test',target:{protein:60,carbs:180,fat:30,fibre:30},diet:'veg',allergies:[],preferences:''}],[]);const display=withHouseholdMeasures(plan);assert.deepEqual(display.dishes,plan.dishes);display.dishes.forEach((d,j)=>d.ingredients.forEach((i,k)=>assert.equal(display.dishIngredientMeasures[j][k],naturalAmount(i.id,i.grams))));assert.deepEqual(display.people.map(p=>[p.total,p.gaps]),plan.people.map(p=>[p.total,p.gaps]));});
