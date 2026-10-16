@@ -8,6 +8,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { personV,stockV,planV,entryV,mealCuisinesV } from './validators';
 import { validateInputs,validateDishes,UnsafeMenuError } from '../shared/validation';
 import { foods,allowedFood,macroKeys } from '../shared/food';
+import {planPersonalSides,sideFailure} from './lib/planPersonalSides';
 import { fitMenu } from './lib/menuFit';
 import { requestDishes } from './lib/dishRequest';
 import { normalizeStock } from './lib/ingredientUnits';
@@ -37,7 +38,8 @@ ${JSON.stringify({mealCuisines,cuisineStaples,totals,people:args.people.map(p=>(
    reserve:async()=>{await ctx.runMutation(internal.households.reserveAiCall,{token:args.token,generation});},
    onRetryError:error=>{if(error instanceof UnsafeMenuError)console.error('Menu safety rejection:',JSON.stringify({conflicts:error.conflicts}));else console.warn('Menu replacement unavailable; keeping capped safe portions.');}
   });
-  const plan={...withHouseholdMeasures(fitted,custom),mealCuisines};
+  let plan:DisplayPlan={...withHouseholdMeasures(fitted,custom),mealCuisines};
+  try{plan=await planPersonalSides(ctx,{plan,people:args.people,stock,mealCuisines,custom,reserve:async()=>{await ctx.runMutation(internal.households.reserveAiCall,{token:args.token,generation});}});}catch(e){plan={...plan,sideNotice:sideFailure(e)};}
   await ctx.runMutation(internal.households.finish,{id,generation,plan});return plan;
  }catch(e){
   await ctx.runMutation(internal.households.finish,{id,generation,plan:null});

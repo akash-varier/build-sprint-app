@@ -50,15 +50,18 @@ export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[],mealC
   }
  }
 
- const ids=new Set(stock.map(s=>s.id));const used=new Set<string>();
- for(const d of dishes){
-  if(new Set(d.ingredients.map(i=>i.id)).size!==d.ingredients.length)throw new Error('Repeated recipe ingredient.');
+ const used=new Set<string>();
+ for(const d of dishes){validateDishIngredients(d,people,stock,catalog);for(const i of d.ingredients)used.add(i.id);}
+ if(stock.some(s=>s.mustUse&&!used.has(s.id)))throw new Error('A must-use ingredient was missed.');
+}
+
+export function validateDishIngredients(d:Dish,people:Person[],stock:Stock[],catalog:Food[]=foods){
+ dishSchema.parse(d);const ids=new Set(stock.map(s=>s.id));
+ if(new Set(d.ingredients.map(i=>i.id)).size!==d.ingredients.length)throw new Error('Repeated recipe ingredient.');
   const meaningful=d.ingredients.filter(i=>i.id!=='water');
   if(!meaningful.length||meaningful.filter(i=>ids.has(i.id)).length/meaningful.length<0.8)throw new Error('Too few available ingredients.');
-  for(const i of d.ingredients){const f=catalog.find(f=>f.id===i.id);if(!f||!allowedFood(f,people))throw new UnsafeMenuError(ingredientConflicts(d.name,i.id,people,catalog));used.add(i.id);}
+  for(const i of d.ingredients){const f=catalog.find(f=>f.id===i.id);if(!f||!allowedFood(f,people))throw new UnsafeMenuError(ingredientConflicts(d.name,i.id,people,catalog));}
   if(d.macros.fibre>d.macros.carbs||d.macros.protein+d.macros.carbs+d.macros.fat>d.weight)throw new Error('Invalid dish nutrition.');
- }
- if(stock.some(s=>s.mustUse&&!used.has(s.id)))throw new Error('A must-use ingredient was missed.');
 }
 
 export function validateFridgeInputs(people:Person[],entries:FridgeEntry[],catalog:Food[]=foods) {

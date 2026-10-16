@@ -53,3 +53,5 @@ export const migrateMealCuisines=internalMutation({args:{},returns:v.number(),ha
  for(const h of households)if(!h.mealCuisines){await ctx.db.patch(h._id,{mealCuisines:initialMealCuisines(h.people)});updated++;}return updated;
 }});
 export const chargeIngredientCall=internalMutation({args:{token:v.string()},returns:v.null(),handler:async(ctx,{token})=>{validateToken(token);await chargeAiCall(ctx,token,Date.now());return null;}});
+
+export const chargeSideCall=internalMutation({args:{token:v.string()},returns:v.null(),handler:async(ctx,{token})=>{validateToken(token);await chargeAiCall(ctx,token,Date.now());return null;}});

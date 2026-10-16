@@ -2,6 +2,8 @@ import type {CustomFood} from '../../shared/ingredientEstimate';
 import type {MealCuisines} from '../../shared/cuisines';
 import {naturalAmount} from './ingredientUnits';
 import {mealCheck,mealTotals,servingSizes} from './portions';
+import {macroKeys,type Macros} from '../../shared/food';
+import type {PersonalSide} from '../../shared/personalSides';
 import { withinMacroTolerance } from '../../shared/food';
 import type { MealPlan } from './portions';
 function reference(name:string):{singular:string;plural:string;grams:number}{
@@ -25,7 +27,16 @@ function itemMeasure(dish:StoredPlan['dishes'][number],grams:number){
  return portionMeasure(dish.name,grams);
 }
 export function withHouseholdMeasures(plan:StoredPlan,custom:CustomFood[]=[]){
- return {...plan,dishIngredientMeasures:plan.dishes.map(d=>d.ingredients.map(i=>naturalAmount(i.id,i.grams,custom))),servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams,custom),availableMeasure:naturalAmount(i.id,i.available,custom),shortageMeasure:naturalAmount(i.id,i.shortage,custom)})),people:plan.people.map(p=>({...p,withinTolerance:withinMacroTolerance(p.gaps),meals:mealTotals(plan.dishes,p.portions,p.target),portions:p.portions.map((portion,j)=>({...portion,mealCheck:mealCheck(portion.macros,p.target),measure:itemMeasure(plan.dishes[j],portion.grams)}))}))};
+ const personalSides=plan.personalSides?.map(s=>({...s,measure:itemMeasure(s.dish,s.dish.weight),ingredientMeasures:s.dish.ingredients.map(i=>naturalAmount(i.id,i.grams,custom))}));
+ const people=plan.people.map((p,personIndex)=>{
+  const sides=personalSides?.filter(s=>s.personIndex===personIndex)??[];
+  const meals=mealTotals(plan.dishes,p.portions,p.target).map(m=>{const macros={...m.macros};for(const side of sides.filter(s=>s.meal===m.meal))for(const k of macroKeys)macros[k]+=side.dish.macros[k];return {...m,macros,mealCheck:mealCheck(macros,p.target)};});
+  const total=personalSides?Object.fromEntries(macroKeys.map(k=>[k,p.portions.reduce((sum,x)=>sum+x.macros[k],0)+sides.reduce((sum,x)=>sum+x.dish.macros[k],0)])) as Macros:p.total;
+  const gaps=personalSides?Object.fromEntries(macroKeys.map(k=>[k,total[k]-p.target[k]])) as Macros:p.gaps;
+  return {...p,total,gaps,withinTolerance:withinMacroTolerance(gaps),meals,portions:p.portions.map((portion,j)=>({...portion,mealCheck:mealCheck(portion.macros,p.target),measure:itemMeasure(plan.dishes[j],portion.grams)}))};
+ });
+ return {...plan,...(personalSides?{personalSides}:{}),dishIngredientMeasures:plan.dishes.map(d=>d.ingredients.map(i=>naturalAmount(i.id,i.grams,custom))),servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams,custom),availableMeasure:naturalAmount(i.id,i.available,custom),shortageMeasure:naturalAmount(i.id,i.shortage,custom)})),people};
 }
-export type StoredPlan=Omit<MealPlan,'people'> & {mealCuisines?:MealCuisines} & {people:(Omit<MealPlan['people'][number],'portions'|'meals'> & {meals?:MealPlan['people'][number]['meals']} & {portions:{grams:number;macros:MealPlan['people'][number]['total'];measure?:string;mealCheck?:ReturnType<typeof mealCheck>}[]})[]};
+
+export type StoredPlan=Omit<MealPlan,'people'> & {mealCuisines?:MealCuisines;personalSides?:PersonalSide[];sideNotice?:string} & {people:(Omit<MealPlan['people'][number],'portions'|'meals'> & {meals?:MealPlan['people'][number]['meals']} & {portions:{grams:number;macros:MealPlan['people'][number]['total'];measure?:string;mealCheck?:ReturnType<typeof mealCheck>}[]})[]};
 export type DisplayPlan=ReturnType<typeof withHouseholdMeasures>;
