@@ -24,4 +24,4 @@ export function allowedFood(f:Food,people:Person[]) {
 }
 
 export const macroTolerance=5;
-export const withinMacroTolerance=(gaps:Macros)=>macroKeys.every(k=>Math.abs(gaps[k])<=macroTolerance+1e-8);
+export const withinMacroTolerance=(gaps:Macros)=>macroKeys.every(k=>(k==='fibre'?gaps[k]>=-macroTolerance-1e-8:Math.abs(gaps[k])<=macroTolerance+1e-8));

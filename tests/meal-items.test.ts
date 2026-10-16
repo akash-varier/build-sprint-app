@@ -25,7 +25,7 @@ test('Meals require one main, one staple and at most one side',()=>{
  assert.doesNotThrow(()=>validateDishes(items,people,stock));
  assert.throws(()=>validateDishes(items.filter((_:any,i:number)=>i!==1),people,stock));
  assert.throws(()=>validateDishes(items.map((x:any,i:number)=>i===1?{...x,role:'main'}:x),people,stock));
- assert.throws(()=>validateDishes(items,people,stock.filter(x=>x.id!=='rice')));
+ assert.doesNotThrow(()=>validateDishes(items,people,stock.filter(x=>x.id!=='rice')));
 });
 test('Four bread slices is a combined meal limit even when multiple items contain bread',()=>{
  const breadItems=items.map((x:any)=>({...x,ingredients:[{id:'bread',grams:300}],weight:300}));
@@ -39,7 +39,7 @@ test('Scaling raw batch ingredients preserves the exact egg cap after portions a
  for(let j=0;j<selected.length;j++){const d=plan.dishes[j];if(d.weight===0)continue;for(const p of plan.people){const eggs=d.ingredients.filter(i=>i.id==='egg').reduce((sum,i)=>sum+i.grams,0)*p.portions[j].grams/d.weight;assert.ok(eggs<=200+1e-8);}}
 });
 
-test('Cuisine staples may be missing when their item still meets 80% fridge coverage',()=>{
+test('Cuisine staples may be bought while still matching the meal cuisine',()=>{
  const selected=items.map((d:any)=>d.role==='staple'?{...d,name:'Vegetable pasta',ingredients:[{id:'pasta',grams:100},{id:'egg',grams:20},{id:'tomato',grams:20},{id:'onion',grams:20},{id:'spinach',grams:20}]}:d);
  const available=[...stock,{id:'onion',grams:100,mustUse:false},{id:'spinach',grams:100,mustUse:false}];
  const choices={breakfast:'Continental',lunch:'Continental',dinner:'Continental'} as const;

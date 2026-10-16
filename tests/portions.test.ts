@@ -41,6 +41,6 @@ test('Portions never exceed 3 katoris even for incompatible targets',()=>{
 
 test('V1 tolerance accepts both signs at 5 g and rejects any macro over 5 g',async()=>{
  const {withinMacroTolerance}=await import('../shared/food');
- assert.equal(withinMacroTolerance(macros(5,-5,4.3,-3.4)),true);
- for(const key of ['protein','carbs','fat','fibre'])for(const sign of [-1,1])assert.equal(withinMacroTolerance({...macros(0,0,0,0),[key]:sign*5.01}),false);
+ assert.equal(withinMacroTolerance(macros(5,-5,4.3,-3.4)),true);assert.equal(withinMacroTolerance(macros(0,0,0,100)),true);assert.equal(withinMacroTolerance(macros(0,0,0,-5.01)),false);
+ for(const key of ['protein','carbs','fat'])for(const sign of [-1,1])assert.equal(withinMacroTolerance({...macros(0,0,0,0),[key]:sign*5.01}),false);
 });

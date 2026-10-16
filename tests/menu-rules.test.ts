@@ -9,9 +9,9 @@ test('Rejects milk allergens and vegetarian conflicts before portions',()=>{
  assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','paneer']),people,stock),/Milk allergy/ );
  assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','chicken']),people,stock),/vegetarian diet/);
 });
-test('Every dish meets the 80% available ingredient rule, excluding water',()=>{
+test('Missing ingredients are allowed for buying without weakening food safety',()=>{
  assert.doesNotThrow(()=>validateDishes(menu(['rice','lentils','oil','tomato','spinach','water']),people,stock));
- assert.throws(()=>validateDishes(menu(['rice','spinach','water']),people,stock),/Too few/);
+ assert.doesNotThrow(()=>validateDishes(menu(['rice','spinach','water']),people,stock));
 });
 test('Must-use is enforced and cannot override an allergy',()=>{
  assert.throws(()=>validateDishes(menu(['rice']),people,[...stock,{id:'spinach',grams:100,mustUse:true}]),/must-use/);
@@ -33,4 +33,9 @@ test('Unsafe menus name the exact dish, ingredient, person and every applicable 
  assert.throws(()=>validateDishes(menu(['rice','lentils','oil','tomato','egg']),both,stock),(e:unknown)=>{
   assert.ok(e instanceof UnsafeMenuError);assert.ok(e.conflicts.some(c=>c.person==='Test B'&&c.reason==='allergy conflict'));assert.ok(e.conflicts.some(c=>c.person==='Test B'&&c.reason==='diet conflict'));return true;
  });
+});
+
+test('An empty fridge permits planning and buying but still rejects unknown or unsafe ingredients',()=>{
+ assert.doesNotThrow(()=>validateInputs(people,[]));assert.doesNotThrow(()=>validateDishes(menu(['lentils','oil']),people,[]));
+ assert.throws(()=>validateDishes(menu(['paneer']),people,[]),/Milk allergy/);assert.throws(()=>validateDishes(menu(['invented_food']),people,[]),/recognise/);
 });

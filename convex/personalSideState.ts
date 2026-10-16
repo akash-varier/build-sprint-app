@@ -1,3 +1,6 @@
+import {estimatedFood} from '../shared/ingredientEstimate';
+import {shrinkPersonalStaples,sameCalculatedSharedServings} from './lib/personalSides';
+import {withHouseholdMeasures} from './lib/householdMeasures';
 import {v,ConvexError} from 'convex/values';
 import {internalMutation,type MutationCtx} from './_generated/server';
 import {planV,personV,stockV,mealCuisinesV} from './validators';
@@ -17,7 +20,10 @@ export const charge=internalMutation({args:{token:v.string(),runId:v.string()},r
 export const finish=internalMutation({args:{token:v.string(),runId:v.string(),plan:planV},returns:v.null(),handler:async(ctx,args)=>{
  const h=await household(ctx,args.token);const run=await ctx.db.query('personalSideRuns').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(run?.runId!==args.runId||dishReviewKey(h.plan!.dishes)!==run.dishKey)throw new ConvexError('The shared menu changed. Find sides again.');
  if(args.plan.mealCuisines&&JSON.stringify(initialMealCuisines(h.people,h.mealCuisines))!==JSON.stringify(args.plan.mealCuisines))throw new ConvexError('Meal cuisines changed. Find sides again.');
- if(JSON.stringify(h.plan!.dishes)!==JSON.stringify(args.plan.dishes)||JSON.stringify(h.plan!.people.map(p=>p.portions))!==JSON.stringify(args.plan.people.map(p=>p.portions)))throw new ConvexError('Personal sides cannot change shared dishes or portions.');
+ const custom=(await ctx.db.query('ingredientEstimates').withIndex('by_token',q=>q.eq('token',args.token)).take(200)).filter(r=>r.confirmed).map(r=>estimatedFood(`custom_${r._id}`,r.name,r.estimate));
+ const expected=shrinkPersonalStaples(withHouseholdMeasures(h.plan!,custom),h.stock,custom);
+ if(!sameCalculatedSharedServings(expected,withHouseholdMeasures(args.plan,custom)))throw new ConvexError('Only the calculated staple reduction is allowed.');
+ const review=await ctx.db.query('menuReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(review?.dishKey===run.dishKey)await ctx.db.patch(review._id,{dishKey:dishReviewKey(args.plan.dishes)});
  await ctx.db.patch(h._id,{plan:args.plan});await ctx.db.delete(run._id);return null;
 }});
 export const release=internalMutation({args:{token:v.string(),runId:v.string()},returns:v.null(),handler:async(ctx,args)=>{const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',args.token)).unique();if(h){const run=await ctx.db.query('personalSideRuns').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(run?.runId===args.runId)await ctx.db.delete(run._id);}return null;}});

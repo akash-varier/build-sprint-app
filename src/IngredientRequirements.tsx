@@ -1,0 +1,6 @@
+import type {DisplayPlan} from '../convex/lib/householdMeasures';
+const fmt=(n:number)=>new Intl.NumberFormat('en-IN',{maximumFractionDigits:1}).format(n);
+export function IngredientRequirements({ingredients,nameOf}:{ingredients:DisplayPlan['ingredients'];nameOf:(id:string)=>string}){
+ const buying=ingredients.filter(i=>i.id!=='water'&&i.shortage>0),available=ingredients.filter(i=>i.id==='water'||i.shortage<=0);
+ return <section><div className="section-heading"><h2>Required ingredients</h2><span>{ingredients.length} items</span></div>{[{title:'Need to buy',items:buying},{title:'Available at home',items:available}].map(group=><div key={group.title}><h3>{group.title}</h3>{!group.items.length?<p className="help">No items.</p>:<div className="ingredient-list">{group.items.map(i=><div key={i.id} className="required-item"><div><strong>{nameOf(i.id)}</strong><p>{i.id==='water'?'Tap water':i.shortage>0?`Have ${i.availableMeasure} · need to buy ${i.shortageMeasure}`:`Available at home · ${i.availableMeasure}`}</p></div><span className="required-amount">{i.measure}<small>{fmt(i.grams)} g raw</small></span></div>)}</div>}</div>)}<p className="help">Pieces round up to whole items; cups and bunches are estimates. These are raw ingredient weights. Your fridge quantities stay unchanged until you update them.</p></section>;
+}
