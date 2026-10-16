@@ -41,3 +41,29 @@ export function naturalAmount(id:string,grams:number,custom:CustomFood[]=[]):str
  const amount=unit==='pieces'?Math.ceil(quantity-1e-9):Math.ceil(quantity*100-1e-9)/100;
  return `${amount} ${id==='bread'&&unit==='pieces'?(amount===1?'slice':'slices'):unit==='pieces'&&amount===1?'piece':unit==='bunch'&&amount!==1?'bunches':unit==='cup'&&amount!==1?'cups':unit}`;
 }
+
+// Menu-only display: these rounded references never feed portions or cooking grams.
+const kitchenFractions=[0,1/4,1/3,1/2,3/4,1];
+function kitchenNumber(n:number){
+ const whole=Math.floor(n),fraction=kitchenFractions.reduce((best,f)=>Math.abs(f-(n-whole))<Math.abs(best-(n-whole))?f:best,0);
+ if(fraction===1)return String(whole+1);
+ const glyph=fraction===1/4?'¼':fraction===1/3?'⅓':fraction===1/2?'½':fraction===3/4?'¾':'';
+ return `${whole||!glyph?whole:''}${glyph}`;
+}
+function spoonAmount(cups:number){
+ const tablespoons=cups*16;
+ if(tablespoons>=1){const n=Math.round(tablespoons*2)/2;return `About ${kitchenNumber(n)} tbsp`;}
+ return `About ${kitchenNumber(Math.max(.25,Math.round(cups*48*4)/4))} tsp`;
+}
+export function menuIngredientAmount(id:string,grams:number,custom:CustomFood[]=[]):string{
+ if(grams===0)return naturalAmount(id,grams,custom);
+ const f=custom.find(f=>f.id===id),name=f?.name.toLowerCase()??foodById.get(id)?.name.toLowerCase()??id;
+ if(id==='spinach'||/\b(spinach|methi|coriander|cilantro|mint|parsley|dill|basil|herbs?)\b/.test(name)){
+  if(grams<37.5)return grams<=25?'About a handful':`About ${kitchenNumber(grams/25)} handfuls`;
+  const bunches=Math.max(.5,Math.round(grams/100*2)/2);return `About ${kitchenNumber(bunches)} ${bunches<=1?'bunch':'bunches'}`;
+ }
+ if(id==='oil'||/\boil\b/.test(name))return spoonAmount(grams/cupGrams.oil);
+ const cup=f?undefined:defaultUnit(id)==='cup'?cupGrams[id]:undefined;
+ if(cup){const cups=grams/cup;return cups<.25?spoonAmount(cups):`About ${kitchenNumber(cups)} ${Math.abs(cups-1)<.125?'cup':'cups'}`;}
+ return naturalAmount(id,grams,custom);
+}
