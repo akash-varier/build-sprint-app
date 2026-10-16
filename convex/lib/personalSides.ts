@@ -1,6 +1,6 @@
 import {macroKeys,type Dish,type Person,type Stock,type Food,type Macros} from '../../shared/food';
 import {biggestMealShortfall,type PersonalSide} from '../../shared/personalSides';
-import {mealNames,validateDishIngredients} from '../../shared/validation';
+import {mealNames,validateDishIngredients,UnsafeMenuError} from '../../shared/validation';
 import {mealTotals,servingCap,isRoti,servingSizes} from './portions';
 import {withHouseholdMeasures,type DisplayPlan} from './householdMeasures';
 import type {CustomFood} from '../../shared/ingredientEstimate';
@@ -10,26 +10,55 @@ export function personalSideRoom(plan:DisplayPlan,personIndex:number,meal:Dish['
  plan.dishes.forEach((d,j)=>{if(d.meal!==meal)return;if(d.weight>0)bread+=p.portions[j].grams*d.ingredients.filter(i=>i.id==='bread').reduce((sum,i)=>sum+i.grams,0)/d.weight;if(isRoti(d))rotis+=p.portions[j].grams;});
  return {remainingBreadRawGrams:Math.max(0,4*servingSizes.breadSlice-bread),remainingRotiCookedGrams:Math.max(0,4*servingSizes.roti-rotis)};
 }
+export function sharedDaily(plan:DisplayPlan,personIndex:number){return Object.fromEntries(macroKeys.map(k=>[k,plan.people[personIndex].portions.reduce((sum,p)=>sum+p.macros[k],0)])) as Macros;}
 export function personalSideSlots(plan:DisplayPlan,meals:readonly Dish['meal'][]=mealNames){
- return plan.people.flatMap((p,personIndex)=>mealTotals(plan.dishes,p.portions,p.target).filter(m=>meals.includes(m.meal)).flatMap(m=>{const gap=biggestMealShortfall(m.macros,p.target);return gap?[{personIndex,meal:m.meal,macro:gap.macro,grams:gap.grams,actual:m.macros,target:p.target,...personalSideRoom(plan,personIndex,m.meal)}]:[];}));
+ return plan.people.flatMap((p,personIndex)=>mealTotals(plan.dishes,p.portions,p.target).filter(m=>meals.includes(m.meal)).flatMap(m=>{const gap=biggestMealShortfall(m.macros,p.target),daily=sharedDaily(plan,personIndex);const macro=macroKeys.reduce((best,k)=>p.target[k]-daily[k]>p.target[best]-daily[best]?k:best,'protein' as typeof macroKeys[number]);return gap?[{personIndex,meal:m.meal,macro,grams:Math.max(0,Math.min(p.target[macro]-daily[macro],p.target[macro]*.4-m.macros[macro])),dailyActual:daily,actual:m.macros,target:p.target,...personalSideRoom(plan,personIndex,m.meal)}]:[];}));
+}
+export function attachPersonalSideAlternatives(plan:DisplayPlan,groups:{personIndex:number;meal?:Dish['meal'];options:Dish[]}[],people:Person[],stock:Stock[],catalog:Food[],custom:CustomFood[]=[],meals:readonly Dish['meal'][]=mealNames):DisplayPlan{
+ let result=attachPersonalSides(plan,[],people,stock,catalog,custom,meals);
+ const seen=new Set<string>();
+ for(const group of groups){
+  const meal=group.meal??group.options[0]?.meal,key=`${group.personIndex}:${meal}`;
+  if(!meal||!meals.includes(meal)||seen.has(key))continue;seen.add(key);
+  if(result.personalSides?.some(s=>s.personIndex===group.personIndex&&s.meal===meal))continue;
+  const target=result.people[group.personIndex]?.target;if(!target)continue;
+  const daily=sharedDaily(result,group.personIndex);for(const s of result.personalSides??[])if(s.personIndex===group.personIndex)for(const k of macroKeys)daily[k]+=s.dish.macros[k];
+  const priority=macroKeys.reduce((best,k)=>target[k]-daily[k]>target[best]-daily[best]?k:best,'protein' as typeof macroKeys[number]);
+  let best=result,improvement=0;
+  for(const dish of group.options.slice(0,4)){
+   if(dish.meal!==meal)continue;
+   try {
+    const fitted=attachPersonalSides(result,[{personIndex:group.personIndex,dish}],people,stock,catalog,custom,[]);
+    const side=fitted.personalSides?.find(s=>s.personIndex===group.personIndex&&s.meal===meal),gain=side?.dish.macros[priority]??0;
+    if(gain>improvement){best=fitted;improvement=gain;}
+   }catch(error){console.error('Personal side alternative rejected:',error instanceof UnsafeMenuError?JSON.stringify({conflicts:error.conflicts}):error instanceof Error?error.message:String(error));}
+  }
+  result=best;
+ }
+ return result;
 }
 export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:number;dish:Dish}[],people:Person[],stock:Stock[],catalog:Food[],custom:CustomFood[]=[],meals:readonly Dish['meal'][]=mealNames):DisplayPlan{
- const slots=personalSideSlots(plan,meals),seen=new Set<string>();
- const sides:PersonalSide[]=(plan.personalSides??[]).filter(s=>!meals.includes(s.meal));
- for(const candidate of candidates){
+ const slots=personalSideSlots(plan),seen=new Set<string>();
+ const retained=(plan.personalSides??[]).filter(s=>!meals.includes(s.meal));
+ const sides:PersonalSide[]=[];
+ for(const candidate of [...retained.map(s=>({personIndex:s.personIndex,dish:s.dish})),...candidates]){
   const {personIndex,dish}=candidate,key=`${personIndex}:${dish.meal}`,slot=slots.find(s=>s.personIndex===personIndex&&s.meal===dish.meal);
   if(!Number.isInteger(personIndex)||!people[personIndex]||!slot||seen.has(key)||dish.role!=='side')throw new Error('Each eligible person may have at most one side per meal.');seen.add(key);
   // Identical ingredient checks; only their recipient defines the diet/allergies.
   validateDishIngredients(dish,[people[personIndex]],stock,catalog);
-  const perGram=dish.macros[slot.macro]/dish.weight;if(perGram<=0)continue;
-  let cap=servingCap(dish);const person=plan.people[personIndex];
+  const daily=sharedDaily(plan,personIndex);for(const s of sides.filter(s=>s.personIndex===personIndex))for(const k of macroKeys)daily[k]+=s.dish.macros[k];
+  const prior=retained.find(s=>s.dish===dish);const target=plan.people[personIndex].target;const priority=prior?.closes??macroKeys.reduce((best,k)=>target[k]-daily[k]>target[best]-daily[best]?k:best,'protein' as typeof macroKeys[number]);
+  const perGram=dish.macros[priority]/dish.weight;if(perGram<=0)continue;
+  let cap=Math.min(servingCap(dish),retained.some(s=>s.dish===dish)?dish.weight:Infinity);const person=plan.people[personIndex];
   const bread=dish.ingredients.filter(i=>i.id==='bread').reduce((sum,i)=>sum+i.grams,0);
   if(bread>0){const used=plan.dishes.reduce((sum,d,j)=>sum+(d.meal===dish.meal&&d.weight>0?person.portions[j].grams*d.ingredients.filter(i=>i.id==='bread').reduce((s,i)=>s+i.grams,0)/d.weight:0),0);cap=Math.min(cap,Math.max(0,4*servingSizes.breadSlice-used)*dish.weight/bread);}
   if(isRoti(dish)){const used=plan.dishes.reduce((sum,d,j)=>sum+(d.meal===dish.meal&&isRoti(d)?person.portions[j].grams:0),0);cap=Math.min(cap,Math.max(0,4*servingSizes.roti-used));}
-  // Close the biggest shortfall to the 25% boundary; never enlarge beyond caps.
-  const weight=Math.floor(Math.min(cap,slot.grams/perGram)*10+1e-8)/10;if(weight<=0)continue;
+  // Daily upper budgets apply across all sides; fibre deliberately has no upper cap.
+  for(const k of ['protein','carbs','fat'] as const)if(dish.macros[k]>0)cap=Math.min(cap,Math.max(0,target[k]+5-daily[k])*dish.weight/dish.macros[k]);
+  const gap=prior?Infinity:Math.max(0,Math.min(target[priority]-daily[priority],target[priority]*.4-slot.actual[priority]));
+  const weight=Math.floor(Math.min(cap,gap/perGram)*10+1e-8)/10;if(weight<=0)continue;
   const scale=weight/dish.weight;const scaled={...dish,weight,macros:Object.fromEntries(macroKeys.map(k=>[k,dish.macros[k]*scale])) as Macros,ingredients:dish.ingredients.map(i=>({...i,grams:i.grams*scale}))};
-  sides.push({personIndex,meal:dish.meal,closes:slot.macro,dish:scaled});
+  sides.push({personIndex,meal:dish.meal,closes:priority,dish:scaled});
  }
  const quantities=new Map<string,number>();for(const d of [...plan.dishes,...sides.map(s=>s.dish)])for(const i of d.ingredients)quantities.set(i.id,round((quantities.get(i.id)??0)+i.grams));
  const ingredients=[...quantities].map(([id,grams])=>{const available=stock.find(s=>s.id===id)?.grams??0;return {id,grams,available,shortage:round(Math.max(0,grams-available))};});

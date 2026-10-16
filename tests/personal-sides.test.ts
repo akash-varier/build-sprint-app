@@ -2,7 +2,7 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {PersonalSideForMeal} from '../src/PersonalSide';
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {biggestMealShortfall} from '../shared/personalSides';import {foods,macroKeys,allowedFood,type Dish,type Person} from '../shared/food';import {attachPersonalSides,personalSideSlots} from '../convex/lib/personalSides';import {withHouseholdMeasures,type DisplayPlan} from '../convex/lib/householdMeasures';import {mealTotals,mealCheck,servingCap} from '../convex/lib/portions';import {naturalAmount} from '../convex/lib/ingredientUnits';
+import {biggestMealShortfall} from '../shared/personalSides';import {foods,macroKeys,allowedFood,type Dish,type Person} from '../shared/food';import {attachPersonalSides,attachPersonalSideAlternatives,personalSideSlots} from '../convex/lib/personalSides';import {withHouseholdMeasures,type DisplayPlan} from '../convex/lib/householdMeasures';import {mealTotals,mealCheck,servingCap} from '../convex/lib/portions';import {naturalAmount} from '../convex/lib/ingredientUnits';
 const target={protein:100,carbs:300,fat:60,fibre:30};
 const people:Person[]=[{name:'Test A',target,diet:'egg',allergies:['Soy'],preferences:''},{name:'Test B',target,diet:'nonveg',allergies:['Milk','Fish'],preferences:''}];
 const shared:Dish[]=['breakfast','lunch','dinner'].flatMap(meal=>[{meal,role:'main',name:'Vegetables',weight:200,macros:{protein:2,carbs:10,fat:1,fibre:2},ingredients:[{id:'tomato',grams:100},{id:'onion',grams:100}]},{meal,role:'staple',name:'Rice',weight:200,macros:{protein:2,carbs:60,fat:1,fibre:1},ingredients:[{id:'rice',grams:70}]}]) as Dish[];
@@ -19,3 +19,32 @@ test('Daily and meal totals include only that person’s side once, including af
 test('Regenerating sides replaces prior sides instead of duplicating them',()=>{const first=attachPersonalSides(base(),[side('paneer',0)],people,stock,foods);const second=attachPersonalSides(first,[side('paneer',0)],people,stock,foods);assert.deepEqual(second.personalSides,first.personalSides);assert.deepEqual(second.ingredients,first.ingredients);assert.deepEqual(second.people,first.people);});
 
 test('Rendered personal meal cards show only the recipient’s side, natural ingredients and smaller grams',()=>{const plan=attachPersonalSides(base(),[side('paneer',0),side('chicken',1)],people,stock,foods);const render=(personIndex:number,meal:'breakfast'|'dinner')=>renderToStaticMarkup(React.createElement(PersonalSideForMeal,{sides:plan.personalSides,personIndex,meal,person:people[personIndex].name,nameOf:id=>foods.find(f=>f.id===id)!.name}));const a=render(0,'breakfast'),b=render(1,'breakfast');assert.match(a,/Test paneer/);assert.doesNotMatch(a,/Test chicken/);assert.match(b,/Test chicken/);assert.doesNotMatch(b,/Test paneer/);assert.match(a,/<small>[^<]+ g cooked<\/small>/);assert.match(a,/<small>[^<]+ g raw<\/small>/);assert.equal(render(0,'dinner'),'');});
+
+
+test('Daily ceilings count every side, keep shared portions fixed, and never cap fibre',()=>{
+ const p=base();p.people[0].target={protein:8,carbs:110,fat:60,fibre:1};
+ const a=side('paneer');a.dish.macros={protein:10,carbs:10,fat:50,fibre:8};
+ const b=structuredClone(a);b.dish.meal='lunch';
+ const result=attachPersonalSides(p,[a,b],people,stock,foods);
+ for(const k of ['protein','carbs','fat'] as const)assert.ok(result.people[0].total[k]<=p.people[0].target[k]+5+1e-8);
+ assert.ok(result.people[0].total.fibre>p.people[0].target.fibre+5);
+ assert.deepEqual(result.people.map(x=>x.portions.map(v=>({grams:v.grams,macros:v.macros}))),p.people.map(x=>x.portions.map(v=>({grams:v.grams,macros:v.macros}))));
+});
+test('Already excessive shared carbs allow zero-carb fat sides, reject carb sides, and try alternatives',()=>{
+ const p=base();p.people[0].target={protein:100,carbs:90,fat:120,fibre:30};
+ const bad=side('paneer').dish;const good=structuredClone(bad);good.name='Fat side';good.macros={protein:0,carbs:0,fat:50,fibre:0};
+ const result=attachPersonalSideAlternatives(p,[{personIndex:0,options:[bad,good]}],people,stock,foods);
+ assert.equal(result.personalSides?.length,1);assert.equal(result.personalSides![0].dish.name,'Fat side');assert.equal(result.personalSides![0].closes,'fat');assert.equal(result.people[0].total.carbs,105);assert.ok(result.people[0].total.fat<=125);
+ const omitted=attachPersonalSideAlternatives(p,[{personIndex:0,options:[bad,bad,bad,bad,good]}],people,stock,foods);assert.equal(omitted.personalSides?.length,0);
+});
+test('Alternative safety remains recipient-specific and falls through to a safe option',()=>{
+ const bad=side('paneer',1).dish,good=side('chicken',1).dish;
+ const result=attachPersonalSideAlternatives(base(),[{personIndex:1,options:[bad,good]}],people,stock,foods);
+ assert.equal(result.personalSides?.[0].dish.name,'Test chicken');
+});
+
+test('Alternatives favour the largest safe improvement of the biggest daily shortfall',()=>{
+ const a=side('paneer').dish,b=structuredClone(a);a.name='Small carbohydrate gain';a.macros={protein:20,carbs:1,fat:10,fibre:0};b.name='Larger carbohydrate gain';
+ const result=attachPersonalSideAlternatives(base(),[{personIndex:0,options:[a,b]}],people,stock,foods);
+ assert.equal(result.personalSides?.[0].dish.name,'Larger carbohydrate gain');
+});
