@@ -1,6 +1,6 @@
 import type {CustomFood} from '../../shared/ingredientEstimate';
 import type {MealCuisines} from '../../shared/cuisines';
-import {naturalAmount,menuIngredientAmount} from './ingredientUnits';
+import {naturalAmount,menuIngredientAmount,buyableAmount} from './ingredientUnits';
 import {mealCheck,mealTotals,servingSizes} from './portions';
 import {macroKeys,type Macros} from '../../shared/food';
 import type {PersonalSide} from '../../shared/personalSides';
@@ -35,7 +35,7 @@ export function withHouseholdMeasures(plan:StoredPlan,custom:CustomFood[]=[]){
   const gaps=personalSides?Object.fromEntries(macroKeys.map(k=>[k,total[k]-p.target[k]])) as Macros:p.gaps;
   return {...p,total,gaps,withinTolerance:withinMacroTolerance(gaps),meals,portions:p.portions.map((portion,j)=>({...portion,mealCheck:mealCheck(portion.macros,p.target),measure:itemMeasure(plan.dishes[j],portion.grams)}))};
  });
- return {...plan,...(personalSides?{personalSides}:{}),dishIngredientMeasures:plan.dishes.map(d=>d.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))),servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams,custom),availableMeasure:naturalAmount(i.id,i.available,custom),shortageMeasure:naturalAmount(i.id,i.shortage,custom)})),people};
+ return {...plan,...(personalSides?{personalSides}:{}),dishIngredientMeasures:plan.dishes.map(d=>d.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))),servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams,custom),availableMeasure:naturalAmount(i.id,i.available,custom),shortageMeasure:naturalAmount(i.id,i.shortage,custom),buyMeasure:buyableAmount(i.id,i.shortage,custom)})),people};
 }
 
 export type StoredPlan=Omit<MealPlan,'people'> & {mealCuisines?:MealCuisines;personalSides?:PersonalSide[];sideNotice?:string} & {people:(Omit<MealPlan['people'][number],'portions'|'meals'> & {meals?:MealPlan['people'][number]['meals']} & {portions:{grams:number;macros:MealPlan['people'][number]['total'];measure?:string;mealCheck?:ReturnType<typeof mealCheck>}[]})[]};

@@ -35,7 +35,7 @@ test('Household labels are presentation only; portions, macros and gaps remain i
  const plan=calculatePlan(dishes,[{name:'Test',target:{protein:60,carbs:180,fat:30,fibre:30},diet:'veg',allergies:[],preferences:''}],[]);
  const before=JSON.stringify(plan);const display=withHouseholdMeasures(plan);assert.equal(JSON.stringify(plan),before);
  const {servingCapsApplied,dishIngredientMeasures,...withoutFlag}=display;assert.equal(servingCapsApplied,true);
- const stripped={...withoutFlag,ingredients:display.ingredients.map(({measure,availableMeasure,shortageMeasure,...i})=>i),people:display.people.map(p=>({...p,portions:p.portions.map(({measure,...portion})=>portion)}))};
+ const stripped={...withoutFlag,ingredients:display.ingredients.map(({measure,availableMeasure,shortageMeasure,buyMeasure,...i})=>i),people:display.people.map(p=>({...p,portions:p.portions.map(({measure,...portion})=>portion)}))};
  assert.deepEqual(stripped,plan);
 });
 

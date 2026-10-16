@@ -83,3 +83,26 @@ export function menuIngredientAmount(id:string,grams:number,custom:CustomFood[]=
  }
  return naturalAmount(id,grams,custom);
 }
+
+// Shopping display only; rounding never changes shortage grams or cooking quantities.
+export function buyableAmount(id:string,grams:number,custom:CustomFood[]=[]):string{
+ if(grams<=0)return naturalAmount(id,0,custom);
+ const f=custom.find(f=>f.id===id),name=f?.name.toLowerCase()??foodById.get(id)?.name.toLowerCase()??id;
+ const up=(quantity:number,step=1)=>Math.ceil(quantity/step-1e-9)*step;
+ if(id==='spinach'||/\b(spinach|methi|coriander leaves|cilantro|mint|parsley|dill|basil|herbs?)\b/.test(name)){
+  const n=up(grams/100);return `${n} ${n===1?'bunch':'bunches'}`;
+ }
+ if(['oil','ghee'].includes(id)||/\b(oil|ghee|butter)\b/.test(name)){
+  const cups=grams/(cupGrams[id]??(name.includes('butter')?227:220.8));return cups*16>=1?`${up(cups*16)} tbsp`:`${up(cups*48)} tsp`;
+ }
+ if(['ginger','garlic','cumin','turmeric','salt'].includes(id)||/\b(spices?|salt|sugar|paste|powder|pepper|chilli|chili|cumin|turmeric|masala|coriander seeds?)\b/.test(name)){
+  const cups=grams/(cupGrams[id]??(name.includes('sugar')?200:120));return cups*16>=3?`${up(cups*16)} tbsp`:`${up(cups*48)} tsp`;
+ }
+ if((!f&&defaultUnit(id)==='pieces')||f?.estimate.unit==='pieces'){
+  const n=up(grams/(f?.estimate.gramsPerUnit??pieceGrams[id]));return `${n} ${id==='bread'?(n===1?'slice':'slices'):n===1?'piece':'pieces'}`;
+ }
+ let cup=(!f&&(defaultUnit(id)==='cup'||['milk','curd'].includes(id)))?cupGrams[id]:0;
+ if(f){const reference=/\b(dal|lentils?|chana|chickpeas?|rajma|beans?|moong)\b/.test(name)?'lentils':/\b(atta|flour|maida)\b/.test(name)?'atta':/\b(rice|grains?|sooji|semolina|quinoa|millet|ragi|jowar|bajra|poha|daliya|oats|wheat|barley|corn)\b/.test(name)?'rice':/\bmilk\b/.test(name)?'milk':/\b(curd|yogurt|yoghurt)\b/.test(name)?'curd':undefined;cup=reference?cupGrams[reference]:0;if(cup&&f.estimate.unit==='katori')cup=f.estimate.gramsPerUnit*240/150;}
+ if(cup){const n=up(grams/cup,.5);return `${kitchenNumber(n)} ${n<=1?'cup':'cups'}`;}
+ return `${up(grams,['chicken','fish','paneer','tofu'].includes(id)||grams>1000?250:100)} g`;
+}
