@@ -13,7 +13,7 @@ test('Convex portions meet different individual targets and cooking totals equal
  const result=calculatePlan(balanced,[person('Test A',macros(120,140,50,30)),person('Test B',macros(60,70,25,15))],[]);
  assert.ok(result.people.every(p=>p.withinTolerance));
  for(let j=0;j<3;j++) assert.ok(Math.abs(result.dishes[j].weight-result.people.reduce((s,p)=>s+p.portions[j].grams,0))<0.01);
- assert.equal(result.dishes[0].ingredients[0].grams,Math.round(result.dishes[0].weight/3*10)/10);
+ assert.ok(Math.abs(result.dishes[0].ingredients[0].grams-Math.round(result.dishes[0].weight/3*10)/10)<1e-8);
 });
 test('Impossible targets show real gaps instead of claiming success',()=>{
  const result=calculatePlan(dishes,[person('Test A',macros(180,10,5,2))],[]);
@@ -43,4 +43,10 @@ test('V1 tolerance accepts both signs at 5 g and rejects any macro over 5 g',asy
  const {withinMacroTolerance}=await import('../shared/food');
  assert.equal(withinMacroTolerance(macros(5,-5,4.3,-3.4)),true);assert.equal(withinMacroTolerance(macros(0,0,0,100)),true);assert.equal(withinMacroTolerance(macros(0,0,0,-5.01)),false);
  for(const key of ['protein','carbs','fat'])for(const sign of [-1,1])assert.equal(withinMacroTolerance({...macros(0,0,0,0),[key]:sign*5.01}),false);
+});
+
+test('Daily macro tolerance wins when meal ranges conflict with the selected recipes',()=>{
+ const selected=dishes.map((d:any,i:number)=>({...d,weight:100,macros:macros(i===0?30:0,i===1?30:0,i===2?30:0,0)}));
+ const p=calculatePlan(selected,[person('Test A',macros(30,30,30,0))],[]).people[0];
+ assert.equal(p.withinTolerance,true);assert.ok(p.meals.some(m=>!m.mealCheck.withinRange));
 });

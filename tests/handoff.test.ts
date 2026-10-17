@@ -11,3 +11,14 @@ test('Handoff renders each personal side only beneath its recipient, targets col
 test('Handoff loading, retry and changed-menu states use the exact requested wording',()=>{const render=(state:'loading'|'changed'|'error')=>renderToStaticMarkup(React.createElement(HandoffState,{state}));assert.match(render('loading'),/Getting today&#x27;s menu…/);assert.match(render('error'),/Couldn&#x27;t load. Tap to retry\./);assert.match(render('changed'),/This menu has changed, ask for a fresh link\./);});
 
 test('Cooking method wording cannot override saved portions or confuse a whole batch with one serving',()=>{const p=fixture(),page=buildHandoffPage(p,foods,methods(p));page.dishes[0].steps[2]='Divide the cooked batch into the saved 900 g portion.';page.sides[0].steps[2]='Serve 600 g per person.';page.sides[0].steps[1]='Keep this personal side separate from the dishes. ज़';const before=JSON.stringify(page);const safe=safeHandoffPage(page);assert.equal(safe.dishes[0].steps[2],'Serve the saved cooked portions shown above.');assert.equal(safe.sides[0].steps[2],'Serve the saved cooked portions shown above.');assert.equal(safe.sides[0].steps[1],'Keep this personal side separate from the dishes.');assert.deepEqual(safe.dishes[0].portions,page.dishes[0].portions);assert.equal(JSON.stringify(page),before);});
+
+test('Cooking handoff entry opens a new tab and keeps the app open',async()=>{
+ const {OpenHandoffLink}=await import('../src/Handoff');const html=renderToStaticMarkup(React.createElement(OpenHandoffLink,{url:'https://example.convex.site/handoff/test'}));
+ assert.match(html,/target="_blank"/);assert.match(html,/rel="noopener noreferrer"/);assert.match(html,/Open cooking and portion handoff/);
+});
+
+test('Ingredients screen includes the same new-tab cooking handoff without changing its ingredient list',async()=>{
+ const {IngredientsScreen}=await import('../src/IngredientsScreen'),{OpenHandoffLink}=await import('../src/Handoff');const p=fixture(),before=JSON.stringify(p.ingredients);
+ const html=renderToStaticMarkup(React.createElement(IngredientsScreen,{ingredients:p.ingredients,nameOf:id=>id,back:null,handoff:React.createElement(OpenHandoffLink,{url:'https://example.convex.site/handoff/test'})}));
+ assert.match(html,/What you’ll need/);assert.match(html,/Open cooking and portion handoff/);assert.match(html,/target="_blank"/);assert.equal(JSON.stringify(p.ingredients),before);
+});

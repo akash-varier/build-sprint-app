@@ -19,6 +19,7 @@ import type * as lib_dishRequest from "../lib/dishRequest.js";
 import type * as lib_handoffPage from "../lib/handoffPage.js";
 import type * as lib_householdMeasures from "../lib/householdMeasures.js";
 import type * as lib_ingredientUnits from "../lib/ingredientUnits.js";
+import type * as lib_jointSides from "../lib/jointSides.js";
 import type * as lib_menuFit from "../lib/menuFit.js";
 import type * as lib_personalSides from "../lib/personalSides.js";
 import type * as lib_planPersonalSides from "../lib/planPersonalSides.js";
@@ -28,6 +29,8 @@ import type * as menu from "../menu.js";
 import type * as personalSideState from "../personalSideState.js";
 import type * as reviews from "../reviews.js";
 import type * as sidePlanning from "../sidePlanning.js";
+import type * as sideReplacement from "../sideReplacement.js";
+import type * as sideReviews from "../sideReviews.js";
 import type * as units from "../units.js";
 import type * as validators from "../validators.js";
 
@@ -49,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   "lib/handoffPage": typeof lib_handoffPage;
   "lib/householdMeasures": typeof lib_householdMeasures;
   "lib/ingredientUnits": typeof lib_ingredientUnits;
+  "lib/jointSides": typeof lib_jointSides;
   "lib/menuFit": typeof lib_menuFit;
   "lib/personalSides": typeof lib_personalSides;
   "lib/planPersonalSides": typeof lib_planPersonalSides;
@@ -58,6 +62,8 @@ declare const fullApi: ApiFromModules<{
   personalSideState: typeof personalSideState;
   reviews: typeof reviews;
   sidePlanning: typeof sidePlanning;
+  sideReplacement: typeof sideReplacement;
+  sideReviews: typeof sideReviews;
   units: typeof units;
   validators: typeof validators;
 }>;

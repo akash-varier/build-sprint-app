@@ -16,7 +16,7 @@ export function servingCap(dish:Dish){
 export function mealCheck(macros:Macros,target:Macros){
  const percent=empty(),rangeGaps=empty();
  for(const key of macroKeys){percent[key]=target[key]>0?macros[key]/target[key]*100:0;rangeGaps[key]=macros[key]<target[key]*.25?macros[key]-target[key]*.25:key!=='fibre'&&macros[key]>target[key]*.4?macros[key]-target[key]*.4:0;}
- return {percent,rangeGaps,withinRange:macroKeys.every(key=>Math.abs(rangeGaps[key])<1e-8)};
+ return {percent,rangeGaps,withinRange:(['protein','carbs','fat'] as const).every(key=>Math.abs(rangeGaps[key])<1e-8)};
 }
 export function mealTotals(dishes:Dish[],portions:{macros:Macros}[],target:Macros){
  return mealNames.map(meal=>{const macros=empty();dishes.forEach((d,i)=>{if(d.meal===meal)for(const k of macroKeys)macros[k]+=portions[i].macros[k];});return {meal,macros,mealCheck:mealCheck(macros,target)};});
@@ -28,28 +28,30 @@ function solve(model:Model):Record<string,number>{
  if(!result.feasible||result.bounded===false)throw new Error('Could not calculate capped portions.');
  return result;
 }
-export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)[]=[]){
- if(dishes.length<3||dishes.length>9||dishes.some(d=>!Number.isFinite(d.weight)||d.weight<=0))throw new Error('Valid meal items are required.');
+export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)[]=[],minimums:number[]=[]){
+ if(dishes.length<3||dishes.length>12||dishes.some(d=>!Number.isFinite(d.weight)||d.weight<=0))throw new Error('Valid meal items are required.');
  // Each variable is one cooked item weight, never an AI-generated portion.
  const model:Model={optimize:'rangeCost',opType:'min',constraints:{},variables:{rangeSlack:{rangeCost:1},dailySlack:{dailyCost:1}}};
  dishes.forEach((d,j)=>{
-  const cap=servingCap(d),minimum=d.role==='main'?Math.min(50,cap):d.role==='staple'?Math.min(25,cap):0;
+  const cap=servingCap(d),minimum=minimums[j]??(d.role==='main'?Math.min(50,cap):d.role==='staple'?Math.min(25,cap):0);
   model.constraints[`cap${j}`]=fixed[j]===undefined?{min:minimum,max:cap}:{min:fixed[j],max:fixed[j]};model.variables[`item${j}`]={[`cap${j}`]:1};
  });
  // Bread is additionally limited to four slices across the entire meal.
  for(const meal of mealNames){if(!dishes.some(d=>d.meal===meal&&d.ingredients.some(i=>i.id==='bread')))continue;const key=`${meal}_bread`;model.constraints[key]={max:4*servingSizes.breadSlice};dishes.forEach((d,j)=>{if(d.meal===meal)model.variables[`item${j}`][key]=d.ingredients.filter(i=>i.id==='bread').reduce((sum,i)=>sum+i.grams,0)/d.weight;});}
  for(const meal of mealNames){if(!dishes.some(d=>d.meal===meal&&isRoti(d)))continue;const key=`${meal}_rotis`;model.constraints[key]={max:4*servingSizes.roti};dishes.forEach((d,j)=>{if(d.meal===meal&&isRoti(d))model.variables[`item${j}`][key]=1;});}
- for(const meal of mealNames)for(const k of macroKeys){
+ for(const meal of mealNames)for(const k of ['protein','carbs','fat'] as const){
   const lo=`${meal}_${k}_lo`,hi=`${meal}_${k}_hi`;
-  model.constraints[lo]={min:.25*target[k]};if(k!=='fibre')model.constraints[hi]={max:.4*target[k]};
-  model.variables.rangeSlack[lo]=Math.max(target[k],1);if(k!=='fibre')model.variables.rangeSlack[hi]=-Math.max(target[k],1);
-  dishes.forEach((d,j)=>{if(d.meal===meal){const coefficient=d.macros[k]/d.weight;model.variables[`item${j}`][lo]=coefficient;if(k!=='fibre')model.variables[`item${j}`][hi]=coefficient;}});
+  const roundingRoom=target[k]>=4?.2:0;model.constraints[lo]={min:.25*target[k]+roundingRoom};model.constraints[hi]={max:.4*target[k]-roundingRoom};
+  model.variables.rangeSlack[lo]=Math.max(target[k],1);model.variables.rangeSlack[hi]=-Math.max(target[k],1);
+  dishes.forEach((d,j)=>{if(d.meal===meal){const coefficient=d.macros[k]/d.weight;model.variables[`item${j}`][lo]=coefficient;model.variables[`item${j}`][hi]=coefficient;}});
  }
- // First minimise missed meal ranges while all per-item caps remain firm.
- const first=solve(model);model.constraints.rangeLock={max:Math.max(0,first.rangeSlack??0)+1e-8};model.variables.rangeSlack.rangeLock=1;
- // Then fit daily totals inside those meal ranges, using a separate gap per macro.
+ // Daily nutrition has priority over meal distribution.
  model.optimize='dailyCost';
  for(const k of macroKeys){const lo=`daily_${k}_lo`,hi=`daily_${k}_hi`;model.constraints[lo]={min:target[k]};if(k!=='fibre')model.constraints[hi]={max:target[k]};model.variables.dailySlack[lo]=1;if(k!=='fibre')model.variables.dailySlack[hi]=-1;dishes.forEach((d,j)=>{model.variables[`item${j}`][lo]=d.macros[k]/d.weight;if(k!=='fibre')model.variables[`item${j}`][hi]=d.macros[k]/d.weight;});}
+ const daily=solve(model);model.constraints.dailyLock={max:Math.max(4.8,daily.dailySlack??0)+1e-8};model.variables.dailySlack.dailyLock=1;
+ model.optimize='rangeCost';const ranges=solve(model);model.constraints.rangeLock={max:Math.max(0,ranges.rangeSlack??0)+1e-8};model.variables.rangeSlack.rangeLock=1;
+ // Finally get as close to target as the best feasible daily/range fit allows.
+ model.optimize='dailyCost';
  const fitted=solve(model);
  const weights=dishes.map((d,j)=>fixed[j]??Math.max(0,Math.min(Math.floor(servingCap(d)*10+1e-8)/10,round(fitted[`item${j}`]??0))));
  // Rounding independent item weights must not overrun the shared bread limit.
@@ -59,7 +61,7 @@ export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)
   for(let j=0;j<weights.length&&excess>1e-8;j++)if(coefficients[j]>0&&fixed[j]===undefined){const reduction=Math.min(weights[j],Math.ceil(excess/coefficients[j]*10-1e-8)/10);weights[j]=round(weights[j]-reduction);excess-=reduction*coefficients[j];}
  }
  for(const meal of mealNames){let excess=weights.reduce((sum,w,j)=>sum+(dishes[j].meal===meal&&isRoti(dishes[j])?w:0),0)-4*servingSizes.roti;for(let j=0;j<weights.length&&excess>1e-8;j++)if(dishes[j].meal===meal&&isRoti(dishes[j])&&fixed[j]===undefined){const reduction=Math.min(weights[j],Math.ceil(excess*10-1e-8)/10);weights[j]=round(weights[j]-reduction);excess-=reduction;}}
- shrinkStapleWeights(dishes,weights,target,fixed);
+ // Later personal-side planning may reduce a staple only when needed.
  return weights;
 }
 export function shrinkStapleWeights(dishes:Dish[],weights:number[],target:Macros,fixed:(number|undefined)[]=[]){

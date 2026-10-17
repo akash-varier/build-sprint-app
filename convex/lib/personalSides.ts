@@ -1,5 +1,6 @@
+import {fitSideCombination} from './jointSides';
 import {dishReviewKey} from '../../shared/review';
-import {macroKeys,type Dish,type Person,type Stock,type Food,type Macros} from '../../shared/food';
+import {allowedFood,macroKeys,type Dish,type Person,type Stock,type Food,type Macros} from '../../shared/food';
 import {type PersonalSide} from '../../shared/personalSides';
 import {mealNames,validateDishIngredients,UnsafeMenuError} from '../../shared/validation';
 import {mealTotals,servingCap,isRoti,servingSizes,shrinkStapleWeights} from './portions';
@@ -38,27 +39,26 @@ export function personalSideSlots(plan:DisplayPlan,meals:readonly Dish['meal'][]
 }
 export function attachPersonalSideAlternatives(plan:DisplayPlan,groups:{personIndex:number;meal?:Dish['meal'];options:Dish[]}[],people:Person[],stock:Stock[],catalog:Food[],custom:CustomFood[]=[],meals:readonly Dish['meal'][]=mealNames):DisplayPlan{
  let result=attachPersonalSides(plan,[],people,stock,catalog,custom,meals);
- const seen=new Set<string>();
- for(const group of groups){
-  const meal=group.meal??group.options[0]?.meal,key=`${group.personIndex}:${meal}`;
-  if(!meal||!meals.includes(meal)||seen.has(key))continue;seen.add(key);
-  if(result.personalSides?.some(s=>s.personIndex===group.personIndex&&s.meal===meal))continue;
-  const target=result.people[group.personIndex]?.target;if(!target)continue;
-  const daily=sharedDaily(result,group.personIndex);for(const s of result.personalSides??[])if(s.personIndex===group.personIndex)for(const k of macroKeys)daily[k]+=s.dish.macros[k];
-  const priority=macroKeys.reduce((best,k)=>target[k]-daily[k]>target[best]-daily[best]?k:best,'protein' as typeof macroKeys[number]);
-  let best=result,improvement=0;
-  for(const dish of group.options.slice(0,4)){
-   if(dish.meal!==meal)continue;
-   try {
-    const fitted=attachPersonalSides(result,[{personIndex:group.personIndex,dish}],people,stock,catalog,custom,[]);
-    const side=fitted.personalSides?.find(s=>s.personIndex===group.personIndex&&s.meal===meal),gain=side?.dish.macros[priority]??0;
-    if(gain>improvement){best=fitted;improvement=gain;}
-   }catch(error){console.error('Personal side alternative rejected:',error instanceof UnsafeMenuError?JSON.stringify({conflicts:error.conflicts}):error instanceof Error?error.message:String(error));}
-  }
+ const required=stock.filter(s=>s.mustUse&&!allowedFood(catalog.find(f=>f.id===s.id)!,people));
+ const rank=(p:DisplayPlan,personIndex:number)=>{
+  const missing=required.filter(s=>!p.personalSides?.some(side=>side.dish.ingredients.some(i=>i.id===s.id&&i.grams>0))).length;
+  const person=p.people[personIndex],gaps=macroKeys.map(k=>Math.max(0,(k==='fibre'?-person.gaps[k]:Math.abs(person.gaps[k]))-5)).sort((a,b)=>b-a);
+  const range=Math.max(...person.meals.flatMap(m=>(['protein','carbs','fat'] as const).map(k=>Math.abs(m.mealCheck.rangeGaps[k])/Math.max(person.target[k],1))));
+  return [missing,...gaps,range,macroKeys.reduce((sum,k)=>sum+(k==='fibre'?Math.max(0,-person.gaps[k]):Math.abs(person.gaps[k])),0)];
+ };
+ for(let personIndex=0;personIndex<people.length;personIndex++){
+  const seen=new Set<string>(),eligible=groups.filter(g=>{const meal=g.meal??g.options[0]?.meal;if(g.personIndex!==personIndex||!meal||!meals.includes(meal)||seen.has(meal))return false;seen.add(meal);return true;});
+  let combinations:Dish[][]=[[]];for(const group of eligible)combinations=combinations.flatMap(c=>[c,...group.options.slice(0,4).filter(d=>d.meal===(group.meal??group.options[0]?.meal)).map(d=>[...c,d])]);
+  let best=result,bestRank=rank(best,personIndex);const retained=result.personalSides??[];
+  for(const selected of combinations){if(!selected.length)continue;try{
+   const candidate=fitSideCombination(result,personIndex,selected,retained,people,stock,catalog,custom),candidateRank=rank(candidate,personIndex);
+   const first=candidateRank.findIndex((v,i)=>Math.abs(v-bestRank[i])>1e-7);if(first>=0&&candidateRank[first]<bestRank[first]){best=candidate;bestRank=candidateRank;}
+  }catch{/* Unsafe or infeasible alternatives cannot be saved. */}}
   result=best;
  }
  return result;
 }
+
 export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:number;dish:Dish}[],people:Person[],stock:Stock[],catalog:Food[],custom:CustomFood[]=[],meals:readonly Dish['meal'][]=mealNames):DisplayPlan{
  const slots=personalSideSlots(plan),seen=new Set<string>();
  const retained=(plan.personalSides??[]).filter(s=>!meals.includes(s.meal));
@@ -69,7 +69,7 @@ export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:num
   // Identical ingredient checks; only their recipient defines the diet/allergies.
   validateDishIngredients(dish,[people[personIndex]],stock,catalog);
   const daily=sharedDaily(plan,personIndex);for(const s of sides.filter(s=>s.personIndex===personIndex))for(const k of macroKeys)daily[k]+=s.dish.macros[k];
-  const prior=retained.find(s=>s.dish===dish);const target=plan.people[personIndex].target;const priority=prior?.closes??macroKeys.reduce((best,k)=>target[k]-daily[k]>target[best]-daily[best]?k:best,'protein' as typeof macroKeys[number]);
+  const prior=retained.find(s=>s.dish===dish);const target=plan.people[personIndex].target;const priority=prior?.closes??macroKeys.filter(k=>dish.macros[k]>0).reduce((best,k)=>target[k]-daily[k]>target[best]-daily[best]?k:best,macroKeys.find(k=>dish.macros[k]>0)??'protein');
   const perGram=dish.macros[priority]/dish.weight;if(perGram<=0)continue;
   let cap=Math.min(servingCap(dish),retained.some(s=>s.dish===dish)?dish.weight:Infinity);const person=plan.people[personIndex];
   const bread=dish.ingredients.filter(i=>i.id==='bread').reduce((sum,i)=>sum+i.grams,0);
@@ -78,7 +78,9 @@ export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:num
   // Daily upper budgets apply across all sides; fibre deliberately has no upper cap.
   for(const k of ['protein','carbs','fat'] as const)if(dish.macros[k]>0)cap=Math.min(cap,Math.max(0,target[k]+5-daily[k])*dish.weight/dish.macros[k]);
   const gap=prior?Infinity:Math.max(0,Math.min(target[priority]-daily[priority],priority==='fibre'?Infinity:target[priority]*.4-slot.actual[priority]));
-  const weight=Math.floor(Math.min(cap,gap/perGram)*10+1e-8)/10;if(weight<=0)continue;
+  const weight=Math.floor(Math.min(cap,gap/perGram)*10+1e-8)/10;const egg=dish.ingredients.filter(i=>i.id==='egg').reduce((sum,i)=>sum+i.grams,0);
+  const minimum=egg>0?Math.max(50,50*dish.weight/egg):50;
+  if(weight+1e-8<minimum)continue;
   const scale=weight/dish.weight;const scaled={...dish,weight,macros:Object.fromEntries(macroKeys.map(k=>[k,dish.macros[k]*scale])) as Macros,ingredients:dish.ingredients.map(i=>({...i,grams:i.grams*scale}))};
   sides.push({personIndex,meal:dish.meal,closes:priority,dish:scaled});
  }

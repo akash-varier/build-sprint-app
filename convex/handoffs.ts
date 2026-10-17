@@ -1,3 +1,4 @@
+import {sidesAccepted} from '../shared/sideReview';
 import {safeHandoffPage} from './lib/handoffPage';
 import {v,ConvexError} from 'convex/values';
 import {query,internalMutation,type MutationCtx} from './_generated/server';
@@ -12,8 +13,9 @@ async function accepted(ctx:MutationCtx,token:string,version:string){
  const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',token)).unique();
  if(!h?.plan)throw new ConvexError(handoffChanged);
  const review=await ctx.db.query('menuReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
+ const sr=await ctx.db.query('sideReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
  const run=await ctx.db.query('personalSideRuns').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
- if(!handoffAccepted(h.plan,h.started,review,!!h.generation,!!run&&Date.now()-run.started<120000))throw new ConvexError('Accept every dish before sharing.');
+ if(!sidesAccepted(h.plan.personalSides??[],h.started,sr)||!handoffAccepted(h.plan,h.started,review,!!h.generation,!!run&&Date.now()-run.started<120000))throw new ConvexError('Accept every dish and personal side before sharing.');
  const custom=(await ctx.db.query('ingredientEstimates').withIndex('by_token',q=>q.eq('token',token)).take(200)).filter(r=>r.confirmed).map(r=>estimatedFood(`custom_${r._id}`,r.name,r.estimate));
  const plan=withHouseholdMeasures(h.plan,custom);if(handoffVersion(plan)!==version)throw new ConvexError(handoffChanged);
  const shares=await ctx.db.query('handoffs').withIndex('by_household',q=>q.eq('householdId',h._id)).order('desc').take(20);
@@ -33,7 +35,8 @@ export const get=query({args:{token:v.string(),attempt:v.optional(v.number())},r
  const share=await ctx.db.query('handoffs').withIndex('by_token',q=>q.eq('token',token)).unique();if(!share)return {state:'changed' as const};
  const h=await ctx.db.get(share.householdId);if(!h?.plan||h.started!==share.menuStarted||handoffVersion(h.plan as Parameters<typeof handoffVersion>[0])!==share.version)return {state:'changed' as const};
  const review=await ctx.db.query('menuReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
+ const sr=await ctx.db.query('sideReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
  const run=await ctx.db.query('personalSideRuns').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
- if(!handoffAccepted(h.plan,h.started,review,!!h.generation,!!run&&Date.now()-run.started<120000))return {state:'changed' as const};
+ if(!sidesAccepted(h.plan.personalSides??[],h.started,sr)||!handoffAccepted(h.plan,h.started,review,!!h.generation,!!run&&Date.now()-run.started<120000))return {state:'changed' as const};
  return {state:'ready' as const,page:safeHandoffPage(share.page)};
 }});

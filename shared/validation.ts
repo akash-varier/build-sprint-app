@@ -20,7 +20,7 @@ export function validateInputs(people:Person[],stock:Stock[],catalog:Food[]=food
  if(new Set(people.map(p=>p.name.trim().toLowerCase())).size!==people.length)throw new Error('Give each family member a different name.');
  for(const p of people)for(const k of macroKeys)if(p.target[k]>({protein:400,carbs:800,fat:250,fibre:100}[k]))throw new Error('One of the daily targets is too high. Check the grams.');
  if(people.some(p=>macroKeys.every(k=>p.target[k]===0)))throw new Error('Enter daily targets for every person.');
- for(const s of stock){const f=catalog.find(f=>f.id===s.id);if(!f)throw new Error('Choose ingredients from the suggestions.');if(s.mustUse&&!allowedFood(f,people))throw new Error(`${f.name} cannot be must-use because of a family allergy or dietary choice.`);}
+ for(const s of stock){const f=catalog.find(f=>f.id===s.id);if(!f)throw new Error('Choose ingredients from the suggestions.');if(s.mustUse&&!people.some(p=>allowedFood(f,[p])))throw new Error(`${f.name} cannot be must-use because of a family allergy or dietary choice.`);}
 }
 export type IngredientConflict={dish:string;ingredientId:string;ingredient:string;person:string|null;reason:'unknown ingredient'|'diet conflict'|'allergy conflict';detail:string};
 export class UnsafeMenuError extends Error {
@@ -52,7 +52,7 @@ export function validateDishes(dishes:Dish[],people:Person[],stock:Stock[],mealC
 
  const used=new Set<string>();
  for(const d of dishes){validateDishIngredients(d,people,stock,catalog);for(const i of d.ingredients)used.add(i.id);}
- if(stock.some(s=>s.mustUse&&!used.has(s.id)))throw new Error('A must-use ingredient was missed.');
+ if(stock.some(s=>s.mustUse&&allowedFood(catalog.find(f=>f.id===s.id)!,people)&&!used.has(s.id)))throw new Error('A must-use ingredient was missed.');
 }
 
 export function validateDishIngredients(d:Dish,people:Person[],stock:Stock[],catalog:Food[]=foods){

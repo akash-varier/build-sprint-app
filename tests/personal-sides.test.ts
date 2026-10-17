@@ -23,7 +23,7 @@ test('Rendered personal meal cards show only the recipient’s side, natural ing
 
 test('Daily ceilings count every side, keep shared portions fixed, and never cap fibre',()=>{
  const p=base();p.people[0].target={protein:8,carbs:110,fat:60,fibre:1};
- const a=side('paneer');a.dish.macros={protein:10,carbs:10,fat:50,fibre:8};
+ const a=side('paneer');a.dish.macros={protein:2,carbs:10,fat:40,fibre:8};
  const b=structuredClone(a);b.dish.meal='lunch';
  const result=attachPersonalSides(p,[a,b],people,stock,foods);
  for(const k of ['protein','carbs','fat'] as const)assert.ok(result.people[0].total[k]<=p.people[0].target[k]+5+1e-8);
@@ -73,4 +73,46 @@ test('Staple-save validation compares recipe and portion values across Convex fi
  const reordered=reorder(p);assert.equal(sameCalculatedSharedServings(p,reordered),true);
  reordered.people[0].portions[0].grams+=.1;assert.equal(sameCalculatedSharedServings(p,reordered),false);
  const changed=reorder(p);changed.dishes[0].ingredients[0].grams+=.1;assert.equal(sameCalculatedSharedServings(p,changed),false);
+});
+
+test('Personal must-use prioritises a safe fitting chicken side without changing shared servings',()=>{
+ const p=base(),required=stock.map(s=>({...s,mustUse:s.id==='chicken'}));
+ const other=side('carrot',1).dish,chicken=side('chicken',1).dish;
+ other.macros.carbs=60;chicken.macros.carbs=10;
+ const result=attachPersonalSideAlternatives(p,[{personIndex:1,options:[other,chicken]}],people,required,foods);
+ assert.equal(result.personalSides?.[0].dish.name,'Test chicken');
+ assert.equal(result.personalSides?.[0].personIndex,1);
+ assert.deepEqual(result.dishes,p.dishes);assert.deepEqual(result.people.map(p=>p.portions),p.people.map(p=>p.portions));
+ assert.throws(()=>attachPersonalSides(p,[side('chicken',0)],people,required,foods),/Test A/);
+ const blocked=structuredClone(p);blocked.people[1].target.protein=0;
+ assert.equal(attachPersonalSideAlternatives(blocked,[{personIndex:1,options:[chicken]}],people,required,foods).personalSides?.length,0);
+});
+
+test('Sides below 50 g are omitted, with a real serving alternative used instead',()=>{
+ const p=base();p.people[0].target={protein:100,carbs:300,fat:4,fibre:30};
+ const tiny=side('paneer').dish;tiny.macros={protein:20,carbs:10,fat:60,fibre:0};
+ assert.equal(attachPersonalSides(p,[{personIndex:0,dish:tiny}],people,stock,foods).personalSides?.length,0);
+ const good=side('lentils').dish;good.macros.fat=1;
+ const next=attachPersonalSideAlternatives(p,[{personIndex:0,options:[tiny,good]}],people,stock,foods);
+ assert.ok(next.personalSides?.length);assert.ok(next.personalSides![0].dish.weight>=50);
+});
+
+test('Daily side combinations close fat as well as protein instead of greedily filling early protein',()=>{
+ let p=base();p.people[0].target={protein:36,carbs:105,fat:33,fibre:4.5};p=withHouseholdMeasures(p);
+ const lean=side('egg').dish;lean.macros={protein:30,carbs:0,fat:1,fibre:0};
+ const balanced=side('egg').dish;balanced.name='Balanced egg salad';balanced.macros={protein:15,carbs:0,fat:15,fibre:0};
+ const lighter={...balanced,name:'Lighter egg salad',macros:{protein:7.5,carbs:0,fat:7.5,fibre:0},ingredients:[{id:'lentils',grams:50},{id:'oil',grams:7.5}]};
+ const groups=['breakfast','lunch','dinner'].map(meal=>({personIndex:0,meal:meal as Dish['meal'],options:[{...lean,meal},{...balanced,meal},{...lighter,meal}] as Dish[]}));
+ const result=attachPersonalSideAlternatives(p,groups,people,stock,foods);
+ assert.ok(Math.abs(result.people[0].gaps.fat)<=5);assert.ok(Math.abs(result.people[0].gaps.protein)<=5);
+ assert.deepEqual(result.dishes,p.dishes);assert.deepEqual(result.people.map(p=>p.portions),p.people.map(p=>p.portions));
+});
+
+test('Joint side portions meet every meal range when a daily-fitting combination exists',()=>{
+ let p=base();p.people[0].target={protein:36,carbs:105,fat:33,fibre:4.5};p=withHouseholdMeasures(p);
+ const d=side('lentils').dish;d.macros={protein:15,carbs:0,fat:15,fibre:0};
+ const groups=['breakfast','lunch','dinner'].map(meal=>({personIndex:0,meal:meal as Dish['meal'],options:[{...d,meal}] as Dish[]}));
+ const fitted=attachPersonalSideAlternatives(p,groups,people,stock,foods);
+ assert.ok(fitted.people[0].withinTolerance);assert.ok(fitted.people[0].meals.every(m=>m.mealCheck.withinRange));
+ assert.ok(fitted.personalSides!.every(s=>s.dish.weight>=50));
 });

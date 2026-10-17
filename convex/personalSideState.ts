@@ -11,6 +11,7 @@ async function household(ctx:MutationCtx,token:string){if(!/^[a-f0-9]{64}$/.test
 export const begin=internalMutation({args:{token:v.string(),dishKey:v.string(),runId:v.string()},returns:v.object({plan:planV,people:v.array(personV),stock:v.array(stockV),mealCuisines:mealCuisinesV}),handler:async(ctx,args)=>{
  const h=await household(ctx,args.token);if(dishReviewKey(h.plan!.dishes)!==args.dishKey)throw new ConvexError('The shared menu changed. Refresh first.');
  if(h.generation&&Date.now()-h.started<120000)throw new ConvexError('Wait for the shared menu to finish.');
+ const sr=await ctx.db.query('sideReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(sr?.operation&&Date.now()-sr.operation.started<120000)throw new ConvexError('Wait for the personal side replacement.');
  const review=await ctx.db.query('menuReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(review?.operation&&Date.now()-review.operation.started<120000)throw new ConvexError('Wait for the dish replacement to finish.');
  const run=await ctx.db.query('personalSideRuns').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(run&&Date.now()-run.started<120000)throw new ConvexError('Personal sides are already being prepared.');
  const fields={householdId:h._id,runId:args.runId,started:Date.now(),dishKey:args.dishKey};if(run)await ctx.db.replace(run._id,fields);else await ctx.db.insert('personalSideRuns',fields);

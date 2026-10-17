@@ -39,3 +39,15 @@ test('An empty fridge permits planning and buying but still rejects unknown or u
  assert.doesNotThrow(()=>validateInputs(people,[]));assert.doesNotThrow(()=>validateDishes(menu(['lentils','oil']),people,[]));
  assert.throws(()=>validateDishes(menu(['paneer']),people,[]),/Milk allergy/);assert.throws(()=>validateDishes(menu(['invented_food']),people,[]),/recognise/);
 });
+
+test('Mixed household accepts chicken must-use but never in shared dishes; nobody eligible still blocks',()=>{
+ const mixed=[people[0],{...people[0],name:'Test B',diet:'nonveg'}];
+ const required=[...stock,{id:'chicken',grams:200,mustUse:true}];
+ assert.doesNotThrow(()=>validateInputs(mixed,required));
+ assert.doesNotThrow(()=>validateDishes(menu(['rice','lentils']),mixed,required));
+ assert.throws(()=>validateDishes(menu(['rice','chicken']),mixed,required),/vegetarian diet/);
+ assert.throws(()=>validateInputs(people,required),/cannot be must-use/);
+ const dairy=[...stock,{id:'curd',grams:100,mustUse:true}];
+ assert.throws(()=>validateInputs(mixed,dairy),/cannot be must-use/);
+ assert.doesNotThrow(()=>validateInputs([mixed[0],{...mixed[1],allergies:[]}],dairy));
+});
