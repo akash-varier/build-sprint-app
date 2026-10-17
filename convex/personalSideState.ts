@@ -1,6 +1,7 @@
 import {sideReviewKey} from '../shared/sideReview';
 import {estimatedFood} from '../shared/ingredientEstimate';
-import {dailyMet,shrinkPersonalStaples,sameCalculatedSharedServings} from './lib/personalSides';
+import {dailyMet,sameSharedRecipeRatios} from './lib/personalSides';
+import {servingCap} from './lib/portions';
 import {withHouseholdMeasures} from './lib/householdMeasures';
 import {v,ConvexError} from 'convex/values';
 import {internalMutation,type MutationCtx} from './_generated/server';
@@ -23,8 +24,11 @@ export const finish=internalMutation({args:{token:v.string(),runId:v.string(),pl
  const h=await household(ctx,args.token);const run=await ctx.db.query('personalSideRuns').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(run?.runId!==args.runId||dishReviewKey(h.plan!.dishes)!==run.dishKey)throw new ConvexError('The shared menu changed. Find sides again.');
  if(args.plan.mealCuisines&&JSON.stringify(initialMealCuisines(h.people,h.mealCuisines))!==JSON.stringify(args.plan.mealCuisines))throw new ConvexError('Meal cuisines changed. Find sides again.');
  const custom=(await ctx.db.query('ingredientEstimates').withIndex('by_token',q=>q.eq('token',args.token)).take(200)).filter(r=>r.confirmed).map(r=>estimatedFood(`custom_${r._id}`,r.name,r.estimate));
- const expected=shrinkPersonalStaples(withHouseholdMeasures(h.plan!,custom),h.stock,custom);
- if(!sameCalculatedSharedServings(expected,withHouseholdMeasures(args.plan,custom)))throw new ConvexError('Only the calculated staple reduction is allowed.');
+ if(!sameSharedRecipeRatios(withHouseholdMeasures(h.plan!,custom),withHouseholdMeasures(args.plan,custom)))throw new ConvexError('Shared recipes must stay unchanged.');
+ for(let i=0;i<h.plan!.people.length;i++)for(let j=0;j<h.plan!.dishes.length;j++){
+  const before=h.plan!.people[i].portions[j],after=args.plan.people[i].portions[j],dish=args.plan.dishes[j];
+  if(after.grams>servingCap(dish)+1e-7||(dish.role!=='staple'&&after.grams>before.grams+1e-7))throw new ConvexError('Shared serving limits exceeded.');
+ }
  for(let i=0;i<h.plan!.people.length;i++)if(dailyMet(withHouseholdMeasures(h.plan!,custom).people[i])){
   const before=h.plan!.people[i],after=args.plan.people[i];if(JSON.stringify(before.portions.map(p=>[p.grams,p.macros.protein,p.macros.carbs,p.macros.fat,p.macros.fibre]))!==JSON.stringify(after.portions.map(p=>[p.grams,p.macros.protein,p.macros.carbs,p.macros.fat,p.macros.fibre]))||sideReviewKey(h.plan!.personalSides?.filter(s=>s.personIndex===i))!==sideReviewKey(args.plan.personalSides?.filter(s=>s.personIndex===i)))throw new ConvexError('A person already within tolerance must stay unchanged.');
  }

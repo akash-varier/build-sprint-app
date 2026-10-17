@@ -30,12 +30,12 @@ test('Daily ceilings count every side, keep shared portions fixed, and never cap
  assert.ok(result.people[0].total.fibre>p.people[0].target.fibre+5);
  assert.deepEqual(result.people.map(x=>x.portions.map(v=>({grams:v.grams,macros:v.macros}))),p.people.map(x=>x.portions.map(v=>({grams:v.grams,macros:v.macros}))));
 });
-test('Already excessive shared carbs allow zero-carb fat sides, reject carb sides, and try alternatives',()=>{
+test('Excess shared carbs can rebalance for safe sides without crossing daily ceilings',()=>{
  const p=base();p.people[0].target={protein:100,carbs:90,fat:120,fibre:30};
  const bad=side('paneer').dish;const good=structuredClone(bad);good.name='Fat side';good.macros={protein:0,carbs:0,fat:50,fibre:0};
  const result=attachPersonalSideAlternatives(p,[{personIndex:0,options:[bad,good]}],people,stock,foods);
- assert.equal(result.personalSides?.length,1);assert.equal(result.personalSides![0].dish.name,'Fat side');assert.equal(result.personalSides![0].closes,'fat');assert.equal(result.people[0].total.carbs,105);assert.ok(result.people[0].total.fat<=125);
- const omitted=attachPersonalSideAlternatives(p,[{personIndex:0,options:[bad,bad,bad,bad,good]}],people,stock,foods);assert.equal(omitted.personalSides?.length,0);
+ assert.ok(result.personalSides!.length<=2);assert.ok(result.personalSides!.some(s=>s.dish.name==='Fat side'));assert.ok(result.people[0].total.carbs<=95);assert.ok(result.people[0].total.fat<=125);
+ const omitted=attachPersonalSideAlternatives(p,[{personIndex:0,options:[bad,bad,bad,bad,good]}],people,stock,foods);assert.ok(omitted.people[0].total.carbs<=95);assert.ok((omitted.personalSides??[]).every(s=>s.dish.weight>=50));
 });
 test('Alternative safety remains recipient-specific and falls through to a safe option',()=>{
  const bad=side('paneer',1).dish,good=side('chicken',1).dish;

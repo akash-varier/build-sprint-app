@@ -20,6 +20,7 @@ export const begin=internalMutation({args:{token:v.string(),people:v.array(perso
  const now=Date.now();const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',args.token)).unique();
  if(h?.generation&&now-h.started<120000)throw new ConvexError(busy);
  await chargeAiCall(ctx,args.token,now);
+ if(h?.generation){const unfinished=await ctx.db.query('runSteps').withIndex('by_household_run',q=>q.eq('householdId',h._id).eq('menuStarted',h.started)).take(200);for(const step of unfinished)if(step.status==='running')await ctx.db.patch(step._id,{status:'failed',endedAt:now,error:JSON.stringify({name:'SupersededRun',message:'This run was superseded before the step completed.'})});}
  const fields={...args,plan:null,started:now};
  if(h){await ctx.db.patch(h._id,fields);return h._id;}return await ctx.db.insert('households',fields);
 }});

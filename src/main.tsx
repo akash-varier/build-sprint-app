@@ -45,6 +45,7 @@ function App(){
  async function finishReview(){setReviewError('');try{await submitReview({token,dishKey});setScreen('ingredients');}catch(e){setReviewError(e instanceof ConvexError?String(e.data):'Could not submit your choices. Try again.');}}
  const [search,setSearch]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [dirty,setDirty]=useState(false);
  useEffect(()=>{if(stored!==undefined&&!hydrated){if(stored){setPeople(stored.people.length?stored.people:[blankPerson()]);setStock(stored.stock);setPlan(stored.plan);setMealCuisines(stored.mealCuisines);setFamilyOpen(!stored.people.length);setDirty(!!stored.plan&&JSON.stringify(stored.plan.mealCuisines)!==JSON.stringify(stored.mealCuisines));}setHydrated(true);}},[stored,hydrated]);
+ useEffect(()=>{if(hydrated&&stored!==undefined&&!busy&&!sideBusy&&reviewWorking===null)setPlan(stored?.plan??null);},[stored?.plan,hydrated,busy,sideBusy,reviewWorking]);
  useEffect(()=>{window.scrollTo({top:0,behavior:'instant'});},[screen]);
  function updatePerson(i:number,patch:Partial<Person>){setPeople(ps=>ps.map((p,j)=>j===i?{...p,...patch}:p));setDirty(true);setError('');}
  async function estimateName(){setEstimating(true);setError('');try{setDraft(await estimateIngredient({token,name:search}));}catch(e){setError(e instanceof ConvexError?String(e.data):'Could not estimate this ingredient. Try again.');}finally{setEstimating(false);}}

@@ -1,3 +1,4 @@
+import {servingAliases} from './ingredientAliases';
 import type {CustomFood} from '../../shared/ingredientEstimate';
 import type {MealCuisines} from '../../shared/cuisines';
 import {naturalAmount,menuIngredientAmount,buyableAmount} from './ingredientUnits';
@@ -27,7 +28,8 @@ function itemMeasure(dish:StoredPlan['dishes'][number],grams:number){
  return portionMeasure(dish.name,grams);
 }
 export function withHouseholdMeasures(plan:StoredPlan,custom:CustomFood[]=[]){
- const personalSides=plan.personalSides?.map(s=>({...s,measure:s.dish.ingredients.every(i=>['oil','ghee','salt'].includes(i.id))?menuIngredientAmount(s.dish.ingredients.find(i=>i.id!=='salt')!.id,s.dish.ingredients.filter(i=>i.id!=='salt').reduce((sum,i)=>sum+i.grams,0),custom):itemMeasure(s.dish,s.dish.weight),ingredientMeasures:s.dish.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))}));
+ const aliases=servingAliases(custom);
+ const personalSides=plan.personalSides?.map(s=>({...s,measure:s.dish.ingredients.every(i=>['oil','ghee','salt'].includes(aliases[i.id]??i.id))?menuIngredientAmount(s.dish.ingredients.find(i=>i.id!=='salt')!.id,s.dish.ingredients.filter(i=>i.id!=='salt').reduce((sum,i)=>sum+i.grams,0),custom):itemMeasure(s.dish,s.dish.weight),ingredientMeasures:s.dish.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))}));
  const people=plan.people.map((p,personIndex)=>{
   const sides=personalSides?.filter(s=>s.personIndex===personIndex)??[];
   const meals=mealTotals(plan.dishes,p.portions,p.target).map(m=>{const macros={...m.macros};for(const side of sides.filter(s=>s.meal===m.meal))for(const k of macroKeys)macros[k]+=side.dish.macros[k];return {...m,macros,mealCheck:mealCheck(macros,p.target)};});

@@ -21,7 +21,7 @@ export function shrinkPersonalStaples(plan:DisplayPlan,stock:Stock[],custom:Cust
  const dishes=plan.dishes.map((d,j)=>{const weight=round(people.reduce((sum,p)=>sum+p.portions[j].grams,0));if(weight===d.weight)return d;const scale=d.weight>0?weight/d.weight:0;return {...d,weight,macros:Object.fromEntries(macroKeys.map(k=>[k,d.macros[k]*scale])) as Macros,ingredients:d.ingredients.map(i=>({...i,grams:i.grams*scale}))};});
  const quantities=new Map<string,number>();for(const d of dishes)for(const i of d.ingredients)quantities.set(i.id,round((quantities.get(i.id)??0)+i.grams));
  const ingredients=[...quantities].map(([id,grams])=>{const available=stock.find(s=>s.id===id)?.grams??0;return {id,grams,available,shortage:round(Math.max(0,grams-available))};});
- return withHouseholdMeasures({...plan,dishes,people,ingredients,personalSides:plan.personalSides??[]},custom);
+ return assembleSides({...plan,dishes,people},plan.personalSides??[],stock,custom);
 }
 export function personalSideRoom(plan:DisplayPlan,personIndex:number,meal:Dish['meal']){
  const p=plan.people[personIndex];let bread=0,rotis=0;
@@ -57,10 +57,15 @@ export function attachPersonalSideAlternatives(plan:DisplayPlan,groups:{personIn
   const previous=(plan.personalSides??[]).filter(s=>s.personIndex===personIndex&&meals.includes(s.meal));
   if(previous.length){try{const baseline=fitSideCombination(result,personIndex,[],[...retained,...previous],people,stock,catalog,custom),baselineRank=rank(baseline,personIndex),first=baselineRank.findIndex((v,i)=>Math.abs(v-bestRank[i])>1e-7);if(first>=0&&baselineRank[first]<bestRank[first]){best=baseline;bestRank=baselineRank;}}catch{/* Older oversized sides must refit under current limits. */}}
 
-  for(const selected of combinations){if(!selected.length)continue;try{
-   const candidate=fitSideCombination(result,personIndex,selected,retained,people,stock,catalog,custom),candidateRank=rank(candidate,personIndex);
-   const first=candidateRank.findIndex((v,i)=>Math.abs(v-bestRank[i])>1e-7);if(first>=0&&candidateRank[first]<bestRank[first]){best=candidate;bestRank=candidateRank;}
-  }catch{/* Unsafe or infeasible alternatives cannot be saved. */}}
+  for(const adjustShared of [false,true]){
+   const daily=sharedDaily(result,personIndex),target=result.people[personIndex].target;
+   if(adjustShared&&(dailyMet(best.people[personIndex])||!(daily.fat>=target.fat-5&&result.people[personIndex].gaps.protein< -5||daily.carbs>target.carbs+5||daily.protein>target.protein+5)))break;
+   for(const selected of combinations){if(!selected.length)continue;try{
+    const candidate=fitSideCombination(result,personIndex,selected,retained,people,stock,catalog,custom,adjustShared),candidateRank=rank(candidate,personIndex);
+    const first=candidateRank.findIndex((v,i)=>Math.abs(v-bestRank[i])>1e-7);if(first>=0&&candidateRank[first]<bestRank[first]){best=candidate;bestRank=candidateRank;}
+    if(dailyMet(best.people[personIndex])&&best.people[personIndex].meals.every(m=>m.mealCheck.withinRange)&&bestRank[4]===0)break;
+   }catch{/* Unsafe or infeasible alternatives cannot be saved. */}}
+  }
   result=best;
  }
  return result;
@@ -95,4 +100,9 @@ export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:num
  const quantities=new Map<string,number>();for(const d of [...plan.dishes,...sides.map(s=>s.dish)])for(const i of d.ingredients)quantities.set(i.id,round((quantities.get(i.id)??0)+i.grams));
  const ingredients=[...quantities].map(([id,grams])=>{const available=stock.find(s=>s.id===id)?.grams??0;return {id,grams,available,shortage:round(Math.max(0,grams-available))};});
  const {sideNotice,...base}=plan;return withHouseholdMeasures({...base,personalSides:sides,ingredients},custom);
+}
+
+// Shared recipe choices and ingredient ratios stay unchanged when portions rebalance.
+export function sameSharedRecipeRatios(a:DisplayPlan,b:DisplayPlan){
+ return a.dishes.length===b.dishes.length&&a.dishes.every((d,j)=>{const e=b.dishes[j],scale=d.weight>0?e.weight/d.weight:1;return d.name===e.name&&d.meal===e.meal&&d.role===e.role&&d.ingredients.length===e.ingredients.length&&d.ingredients.every((x,k)=>x.id===e.ingredients[k].id&&Math.abs(x.grams*scale-e.ingredients[k].grams)<1e-6)&&macroKeys.every(k=>Math.abs(d.macros[k]*scale-e.macros[k])<1e-6);});
 }

@@ -9,11 +9,12 @@ function score(plan:MealPlan){
 export function preferCandidate(current:MealPlan,candidate:MealPlan){
  const a=score(current),b=score(candidate);return b[0]<a[0]-1e-6||(Math.abs(b[0]-a[0])<=1e-6&&b[1]<a[1]-1e-6);
 }
-export async function fitMenu(options:{people:Person[];stock:Stock[];request:(feedback?:string)=>Promise<Dish[]>;reserve:()=>Promise<void>;onRetryError:(error:unknown)=>void}){
- let plan=calculatePlan(await options.request(),options.people,options.stock);
+export async function fitMenu(options:{people:Person[];stock:Stock[];request:(feedback?:string)=>Promise<Dish[]>;reserve:()=>Promise<void>;onRetryError:(error:unknown)=>void;calculate?:(dishes:Dish[])=>Promise<MealPlan>}){
+ const calculate=options.calculate??(async(dishes:Dish[])=>calculatePlan(dishes,options.people,options.stock));
+ let plan=await calculate(await options.request());
  if(needsBetterDishes(plan)){
   const feedback=JSON.stringify({replace:plan.dishes.map(d=>({name:d.name,ids:d.ingredients.map(i=>i.id)})),fit:plan.people.map(p=>({gaps:p.gaps,mealRangeGaps:p.meals.map(x=>x.mealCheck.rangeGaps)}))});
-  try{await options.reserve();const candidate=calculatePlan(await options.request(feedback),options.people,options.stock);if(preferCandidate(plan,candidate))plan=candidate;}
+  try{await options.reserve();const candidate=await calculate(await options.request(feedback));if(preferCandidate(plan,candidate))plan=candidate;}
   catch(error){options.onRetryError(error);}
  }
  return plan;

@@ -1,14 +1,15 @@
 import {sidesAccepted} from '../shared/sideReview';
 import {safeHandoffPage} from './lib/handoffPage';
 import {v,ConvexError} from 'convex/values';
-import {query,internalMutation,type MutationCtx} from './_generated/server';
+import {query,internalQuery,internalMutation,type MutationCtx,type QueryCtx} from './_generated/server';
 import {planV} from './validators';
 import {handoffPageV} from './handoffValidators';
 import {handoffAccepted,handoffVersion,handoffChanged} from '../shared/handoff';
 import {chargeAiCall} from './households';
+import {internal} from './_generated/api';
 import {withHouseholdMeasures} from './lib/householdMeasures';
 import {estimatedFood} from '../shared/ingredientEstimate';
-async function accepted(ctx:MutationCtx,token:string,version:string){
+async function accepted(ctx:MutationCtx|QueryCtx,token:string,version:string){
  if(!/^[a-f0-9]{64}$/.test(token))throw new ConvexError(handoffChanged);
  const h=await ctx.db.query('households').withIndex('by_token',q=>q.eq('token',token)).unique();
  if(!h?.plan)throw new ConvexError(handoffChanged);
@@ -21,8 +22,19 @@ async function accepted(ctx:MutationCtx,token:string,version:string){
  const shares=await ctx.db.query('handoffs').withIndex('by_household',q=>q.eq('householdId',h._id)).order('desc').take(20);
  return {h,plan,existing:shares.find(s=>s.menuStarted===h.started&&s.version===version)};
 }
-export const prepare=internalMutation({args:{token:v.string(),version:v.string()},returns:v.object({plan:planV,started:v.number(),existingToken:v.union(v.string(),v.null())}),handler:async(ctx,args)=>{
- const {h,plan,existing}=await accepted(ctx,args.token,args.version);if(!existing)await chargeAiCall(ctx,args.token,Date.now());return {plan,started:h.started,existingToken:existing?.token??null};
+export const prepare=internalMutation({args:{token:v.string(),version:v.string(),operation:v.string()},returns:v.null(),handler:async(ctx,a)=>{
+ const {h,existing}=await accepted(ctx,a.token,a.version);if(existing)return null;
+ const job=await ctx.db.query('handoffJobs').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();
+ if(job?.version===a.version&&job.menuStarted===h.started&&job.status==='running'&&Date.now()-job.startedAt<150000)return null;
+ const fields={householdId:h._id,menuStarted:h.started,version:a.version,operation:a.operation,status:'running' as const,startedAt:Date.now()};
+ const id=job?job._id:await ctx.db.insert('handoffJobs',fields);if(job)await ctx.db.replace(id,fields);
+ await ctx.scheduler.runAfter(0,internal.handoffAI.build,{...a,jobId:id});return null;
+}});
+export const snapshot=internalQuery({args:{token:v.string(),version:v.string()},returns:v.object({plan:planV,started:v.number()}),handler:async(ctx,a)=>{const {h,plan}=await accepted(ctx,a.token,a.version);return {plan,started:h.started};}});
+export const charge=internalMutation({args:{token:v.string(),version:v.string(),operation:v.string()},returns:v.null(),handler:async(ctx,a)=>{const {h}=await accepted(ctx,a.token,a.version);const job=await ctx.db.query('handoffJobs').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(job?.operation!==a.operation)throw new ConvexError(handoffChanged);await chargeAiCall(ctx,a.token,Date.now());return null;}});
+export const finishJob=internalMutation({args:{jobId:v.id('handoffJobs'),operation:v.string(),shareToken:v.optional(v.string()),error:v.optional(v.string()),message:v.optional(v.string())},returns:v.null(),handler:async(ctx,a)=>{const job=await ctx.db.get(a.jobId);if(job?.operation===a.operation)await ctx.db.patch(a.jobId,{status:a.shareToken?'ready':'failed',endedAt:Date.now(),...(a.shareToken?{shareToken:a.shareToken}:{}),...(a.error?{error:a.error}:{}),...(a.message?{message:a.message}:{})});return null;}});
+export const status=query({args:{token:v.string(),version:v.string()},returns:v.object({state:v.union(v.literal('idle'),v.literal('working'),v.literal('ready'),v.literal('error')),shareToken:v.optional(v.string()),message:v.optional(v.string())}),handler:async(ctx,a)=>{
+ try{const {h,existing}=await accepted(ctx,a.token,a.version);if(existing)return {state:'ready' as const,shareToken:existing.token};const job=await ctx.db.query('handoffJobs').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(!job||job.version!==a.version||job.menuStarted!==h.started)return {state:'idle' as const};if(job.status==='running'&&Date.now()-job.startedAt<150000)return {state:'working' as const};return {state:'error' as const,message:job.message??'Cooking link preparation stopped. Please retry.'};}catch(e){return {state:'error' as const,message:e instanceof ConvexError?String(e.data):'Could not check the cooking link. Please retry.'};}
 }});
 export const save=internalMutation({args:{token:v.string(),version:v.string(),started:v.number(),shareToken:v.string(),page:handoffPageV},returns:v.string(),handler:async(ctx,args)=>{
  const {h,existing}=await accepted(ctx,args.token,args.version);if(h.started!==args.started)throw new ConvexError(handoffChanged);if(existing)return existing.token;

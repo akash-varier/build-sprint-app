@@ -1,3 +1,4 @@
+import {shrinkPersonalStaples} from './personalSides';
 import {macroKeys,withinMacroTolerance,type Dish,type Stock,type Macros} from '../../shared/food';
 import {fitPortions,mealCheck,mealTotals,servingCap} from './portions';
 import {withHouseholdMeasures,type DisplayPlan} from './householdMeasures';
@@ -23,5 +24,5 @@ export function replaceOneDish(plan:DisplayPlan,index:number,dish:Dish,stock:Sto
  const decorated=withHouseholdMeasures({...plan,dishes,people,ingredients},custom);
  // Preserve accepted item records exactly, including displayed household measures.
  decorated.people=decorated.people.map((p,pi)=>({...p,portions:p.portions.map((x,j)=>j===index?x:plan.people[pi].portions[j])}));
- return decorated;
+ return shrinkPersonalStaples(decorated,stock,custom);
 }

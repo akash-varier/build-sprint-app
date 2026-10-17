@@ -28,7 +28,7 @@ export const replace=action({args:{token:v.string(),dishKey:v.string(),index:v.n
   validateDishes(raw,snapshot.people,snapshot.stock,snapshot.mealCuisines,catalog);
   const sharedBase=attachPersonalSides(withHouseholdMeasures(snapshot.plan,custom),[],snapshot.people,snapshot.stock,catalog,custom,[dish.meal]);
   let plan=replaceOneDish(sharedBase,args.index,dish,snapshot.stock,custom);
-  try{plan=await planPersonalSides(ctx,{plan,people:snapshot.people,stock:snapshot.stock,mealCuisines:snapshot.mealCuisines,custom,meals:[dish.meal],reserve:async()=>{await ctx.runMutation(internal.households.chargeSideCall,{token:args.token});}});}catch(e){plan={...plan,sideNotice:sideFailure(e)};}
+  try{plan=await planPersonalSides(ctx,{token:args.token,plan,people:snapshot.people,stock:snapshot.stock,mealCuisines:snapshot.mealCuisines,custom,meals:[dish.meal],reserve:async()=>{await ctx.runMutation(internal.households.chargeSideCall,{token:args.token});}});}catch(e){plan={...plan,sideNotice:sideFailure(e)};}
   await ctx.runMutation(internal.reviews.complete,{...args,operation,plan});return plan;
  }catch(e){
   const detail=(e instanceof Error?e.message:'Unknown replacement error').replaceAll(process.env.OPENAI_API_KEY??'__no_key__','[redacted]').replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,500);console.error('Dish replacement failed:',detail);
