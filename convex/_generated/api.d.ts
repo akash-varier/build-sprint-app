@@ -17,6 +17,7 @@ import type * as ingredientAI from "../ingredientAI.js";
 import type * as ingredients from "../ingredients.js";
 import type * as lib_actionErrors from "../lib/actionErrors.js";
 import type * as lib_dishRequest from "../lib/dishRequest.js";
+import type * as lib_fatAdditions from "../lib/fatAdditions.js";
 import type * as lib_handoffPage from "../lib/handoffPage.js";
 import type * as lib_householdMeasures from "../lib/householdMeasures.js";
 import type * as lib_ingredientAliases from "../lib/ingredientAliases.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   ingredients: typeof ingredients;
   "lib/actionErrors": typeof lib_actionErrors;
   "lib/dishRequest": typeof lib_dishRequest;
+  "lib/fatAdditions": typeof lib_fatAdditions;
   "lib/handoffPage": typeof lib_handoffPage;
   "lib/householdMeasures": typeof lib_householdMeasures;
   "lib/ingredientAliases": typeof lib_ingredientAliases;

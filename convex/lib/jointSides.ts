@@ -1,3 +1,5 @@
+import {addedFatGrams,isFatAddition,labelFatAddition} from './fatAdditions';
+import {foods} from '../../shared/food';
 import {servingAliases} from './ingredientAliases';
 import {macroKeys,type Dish,type Person,type Stock,type Food,type Macros} from '../../shared/food';
 import type {CustomFood} from '../../shared/ingredientEstimate';
@@ -8,11 +10,14 @@ import {withHouseholdMeasures,type DisplayPlan} from './householdMeasures';
 export function sideMinimum(d:Dish,aliases:Record<string,string>={}){
  const meaningful=d.ingredients.filter(i=>!['water','salt','cumin','turmeric','garlic','ginger','lemon'].includes(i.id));
  const only=(ids:string[])=>meaningful.length>0&&meaningful.every(i=>ids.includes(aliases[i.id]??i.id));
- if(only(['oil','ghee']))return 4.6*d.weight/meaningful.reduce((s,i)=>s+i.grams,0);
+ if(only(['oil','ghee','butter']))return 4.6*d.weight/meaningful.reduce((s,i)=>s+i.grams,0);
  if(only(['peanut','almond','sesame']))return 10*d.weight/meaningful.reduce((s,i)=>s+i.grams,0);
  const egg=d.ingredients.filter(i=>i.id==='egg').reduce((s,i)=>s+i.grams,0);return egg>0?Math.max(50,50*d.weight/egg):50;
 }
 export function assembleSides(plan:DisplayPlan,sides:PersonalSide[],stock:Stock[],custom:CustomFood[]=[]){
+ const aliases=servingAliases([...foods,...custom]);
+ sides=sides.map(s=>{if(!isFatAddition(s.dish,aliases))return s;const host=plan.dishes.find((d,j)=>d.meal===s.meal&&plan.people[s.personIndex].portions[j].grams>0&&d.role==='main')??plan.dishes.find((d,j)=>d.meal===s.meal&&plan.people[s.personIndex].portions[j].grams>0);if(!host)throw new Error('Added fat needs a dish this person is eating.');return {...s,dish:labelFatAddition(s.dish,host.name,aliases)};});
+ for(let personIndex=0;personIndex<plan.people.length;personIndex++)if(sides.filter(s=>s.personIndex===personIndex).reduce((sum,s)=>sum+addedFatGrams(s.dish,aliases),0)>28+1e-7)throw new Error('Added oil, ghee and butter exceed 2 tbsp per day.');
  const amounts=new Map<string,number>();for(const d of [...plan.dishes,...sides.map(s=>s.dish)])for(const i of d.ingredients)amounts.set(i.id,(amounts.get(i.id)??0)+i.grams);
  const ingredients=[...amounts].map(([id,grams])=>{grams=Math.round(grams*10)/10;const available=stock.find(s=>s.id===id)?.grams??0;return {id,grams,available,shortage:Math.round(Math.max(0,grams-available)*10)/10};});
  return withHouseholdMeasures({...plan,personalSides:sides,ingredients},custom);

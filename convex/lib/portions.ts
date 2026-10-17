@@ -15,7 +15,7 @@ export function servingCap(dish:Dish){
 }
 export function personalServingCap(dish:Dish,aliases:Record<string,string>={}){
  const grams=(ids:string[])=>dish.ingredients.filter(i=>ids.includes(aliases[i.id]??i.id)).reduce((s,i)=>s+i.grams,0);
- const nuts=grams(['peanut','almond','sesame']),oil=grams(['oil','ghee']);
+ const nuts=grams(['peanut','almond','sesame']),oil=grams(['oil','ghee','butter']);
  return Math.min(servingCap(dish),grams(['chicken'])>0?250:Infinity,grams(['paneer'])>0?150:Infinity,nuts>0?40*dish.weight/nuts:Infinity,oil>0?28*dish.weight/oil:Infinity);
 }
 export function mealCheck(macros:Macros,target:Macros){
@@ -48,8 +48,9 @@ export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)
  // Personal-food limits are combined per person/meal; shared recipes retain their caps.
  for(const meal of mealNames)for(const [kind,max] of [['chicken',250],['paneer',150],['nuts',40],['oil',28]] as const){
   const key=`personal_${meal}_${kind}`;model.constraints[key]={max:max-.1};
-  dishes.forEach((d,j)=>{if(j<personalStart||d.meal!==meal)return;const ids=kind==='nuts'?['peanut','almond','sesame']:kind==='oil'?['oil','ghee']:[kind];const raw=d.ingredients.filter(i=>ids.includes(aliases[i.id]??i.id)).reduce((sum,i)=>sum+i.grams,0);model.variables[`item${j}`][key]=(kind==='chicken'||kind==='paneer')?(raw>0?1:0):raw/d.weight;});
+  dishes.forEach((d,j)=>{if(j<personalStart||d.meal!==meal)return;const ids=kind==='nuts'?['peanut','almond','sesame']:kind==='oil'?['oil','ghee','butter']:[kind];const raw=d.ingredients.filter(i=>ids.includes(aliases[i.id]??i.id)).reduce((sum,i)=>sum+i.grams,0);model.variables[`item${j}`][key]=(kind==='chicken'||kind==='paneer')?(raw>0?1:0):raw/d.weight;});
  }
+ const fatKey='personal_daily_added_fat';model.constraints[fatKey]={max:27.9};dishes.forEach((d,j)=>{if(j>=personalStart)model.variables[`item${j}`][fatKey]=d.ingredients.filter(i=>['oil','ghee','butter'].includes(aliases[i.id]??i.id)).reduce((sum,i)=>sum+i.grams,0)/d.weight;});
  if(Number.isFinite(personalStart))for(const k of ['protein','carbs','fat'] as const){const fixedActual=dishes.reduce((sum,d,j)=>sum+(fixed[j]??0)*d.macros[k]/d.weight,0),key=`personal_daily_${k}`;model.constraints[key]={max:Math.max(fixedActual,target[k]+4.8)};dishes.forEach((d,j)=>{model.variables[`item${j}`][key]=d.macros[k]/d.weight;});}
  for(const meal of mealNames)for(const k of ['protein','carbs','fat'] as const){
   const lo=`${meal}_${k}_lo`,hi=`${meal}_${k}_hi`;

@@ -1,3 +1,5 @@
+import {addedFatGrams,isFatAddition} from './fatAdditions';
+import {servingAliases} from './ingredientAliases';
 import {fitSideCombination,assembleSides,sideMinimum} from './jointSides';
 import {dishReviewKey} from '../../shared/review';
 import {allowedFood,macroKeys,type Dish,type Person,type Stock,type Food,type Macros} from '../../shared/food';
@@ -47,7 +49,7 @@ export function attachPersonalSideAlternatives(plan:DisplayPlan,groups:{personIn
   const missing=required.filter(s=>!p.personalSides?.some(side=>side.dish.ingredients.some(i=>i.id===s.id&&i.grams>0))).length;
   const person=p.people[personIndex],gaps=macroKeys.map(k=>Math.max(0,(k==='fibre'?-person.gaps[k]:Math.abs(person.gaps[k]))-5)).sort((a,b)=>b-a);
   const rangeGaps=person.meals.flatMap(m=>(['protein','carbs','fat'] as const).map(k=>Math.abs(m.mealCheck.rangeGaps[k])/Math.max(person.target[k],1))),range=Math.max(...rangeGaps);
-  return [...gaps,missing,range,rangeGaps.reduce((sum,x)=>sum+x,0),macroKeys.reduce((sum,k)=>sum+(k==='fibre'?Math.max(0,-person.gaps[k]):Math.abs(person.gaps[k])),0)];
+  return [...gaps,missing,(p.personalSides??[]).filter(s=>s.personIndex===personIndex&&isFatAddition(s.dish,servingAliases(catalog))).reduce((sum,s)=>sum+addedFatGrams(s.dish,servingAliases(catalog)),0),range,rangeGaps.reduce((sum,x)=>sum+x,0),macroKeys.reduce((sum,k)=>sum+(k==='fibre'?Math.max(0,-person.gaps[k]):Math.abs(person.gaps[k])),0)];
  };
  for(let personIndex=0;personIndex<people.length;personIndex++){
   if(dailyMet(plan.people[personIndex]))continue;
@@ -63,7 +65,7 @@ export function attachPersonalSideAlternatives(plan:DisplayPlan,groups:{personIn
    for(const selected of combinations){if(!selected.length)continue;try{
     const candidate=fitSideCombination(result,personIndex,selected,retained,people,stock,catalog,custom,adjustShared),candidateRank=rank(candidate,personIndex);
     const first=candidateRank.findIndex((v,i)=>Math.abs(v-bestRank[i])>1e-7);if(first>=0&&candidateRank[first]<bestRank[first]){best=candidate;bestRank=candidateRank;}
-    if(dailyMet(best.people[personIndex])&&best.people[personIndex].meals.every(m=>m.mealCheck.withinRange)&&bestRank[4]===0)break;
+    if(dailyMet(best.people[personIndex])&&best.people[personIndex].meals.every(m=>m.mealCheck.withinRange)&&bestRank[4]===0&&!best.personalSides?.some(s=>s.personIndex===personIndex&&isFatAddition(s.dish,servingAliases(catalog))))break;
    }catch{/* Unsafe or infeasible alternatives cannot be saved. */}}
   }
   result=best;
@@ -92,6 +94,7 @@ export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:num
   for(const k of ['protein','carbs','fat'] as const)if(dish.macros[k]>0)cap=Math.min(cap,Math.max(0,target[k]+5-daily[k])*dish.weight/dish.macros[k]);
   const gap=prior?Infinity:Math.max(0,Math.min(target[priority]-daily[priority],priority==='fibre'?Infinity:target[priority]*.4-slot.actual[priority]));
   const weight=Math.floor(Math.min(cap,gap/perGram)*10+1e-8)/10;const egg=dish.ingredients.filter(i=>i.id==='egg').reduce((sum,i)=>sum+i.grams,0);
+  const fat=addedFatGrams(dish,servingAliases(catalog)),usedFat=sides.filter(s=>s.personIndex===personIndex).reduce((sum,s)=>sum+addedFatGrams(s.dish,servingAliases(catalog)),0);if(fat>0&&weight*fat/dish.weight+usedFat>28+1e-8)continue;
   const minimum=sideMinimum(dish);
   if(weight+1e-8<minimum)continue;
   const scale=weight/dish.weight;const scaled={...dish,weight,macros:Object.fromEntries(macroKeys.map(k=>[k,dish.macros[k]*scale])) as Macros,ingredients:dish.ingredients.map(i=>({...i,grams:i.grams*scale}))};
