@@ -22,3 +22,13 @@ test('Ingredients screen includes the same new-tab cooking handoff without chang
  const html=renderToStaticMarkup(React.createElement(IngredientsScreen,{ingredients:p.ingredients,nameOf:id=>id,back:null,handoff:React.createElement(OpenHandoffLink,{url:'https://example.convex.site/handoff/test'})}));
  assert.match(html,/What you’ll need/);assert.match(html,/Open cooking and portion handoff/);assert.match(html,/target="_blank"/);assert.equal(JSON.stringify(p.ingredients),before);
 });
+
+test('Cooking progress changes at 20 seconds and cancels its timer when removed',async(t)=>{
+ const {watchHandoffProgress,HandoffProgress}=await import('../src/Handoff');
+ t.mock.timers.enable({apis:['setTimeout']});let shown=0;
+ const cancel=watchHandoffProgress(()=>shown++);
+ t.mock.timers.tick(19999);assert.equal(shown,0);t.mock.timers.tick(1);assert.equal(shown,1);cancel();
+ const removed=watchHandoffProgress(()=>shown++);removed();t.mock.timers.tick(20000);assert.equal(shown,1);
+ assert.match(renderToStaticMarkup(React.createElement(HandoffProgress)),/150 seconds/);
+ t.mock.timers.reset();
+});

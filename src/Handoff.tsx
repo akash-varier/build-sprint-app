@@ -14,10 +14,16 @@ class HandoffBoundary extends React.Component<{children:React.ReactNode;retry:()
 function SharedMenu({token,attempt}:{token:string;attempt:number}){const result=useQuery(api.handoffs.get,{token,attempt});if(result===undefined)return <HandoffState state="loading"/>;if(result.state==='changed')return <HandoffState state="changed"/>;return <HandoffContent page={result.page} url={location.href}/>;}
 export function HandoffRoute({token}:{token:string}){const [attempt,setAttempt]=useState(0);return <HandoffBoundary key={attempt} retry={()=>setAttempt(n=>n+1)}><SharedMenu token={token} attempt={attempt}/></HandoffBoundary>;}
 export function OpenHandoffLink({url}:{url:string}){return <a className="recipe-video-button" href={url} target="_blank" rel="noopener noreferrer">Open cooking and portion handoff</a>;}
+export function watchHandoffProgress(show:()=>void){const timer=setTimeout(show,20000);return ()=>clearTimeout(timer);}
+export function HandoffProgress(){
+ const [waiting,setWaiting]=useState(false);
+ useEffect(()=>watchHandoffProgress(()=>setWaiting(true)),[]);
+ return <p role="status">{waiting?'Still preparing your cooking link…':'Preparing your cooking link… If the AI fails or takes over 150 seconds, we’ll retry once automatically.'}</p>;
+}
 export function HandoffLink({token,version}:{token:string;version:string}){
- const create=useAction(api.handoffAI.create),status=useQuery(api.handoffs.status,{token,version}),[error,setError]=useState<string|null>(null);
- const start=()=>{setError(null);return create({token,version}).catch(e=>setError(e?.data?String(e.data):'Could not start cooking link preparation. Please retry.'));};
+ const create=useAction(api.handoffAI.create),status=useQuery(api.handoffs.status,{token,version}),[error,setError]=useState<string|null>(null),[attempt,setAttempt]=useState(0);
+ const start=()=>{setError(null);setAttempt(n=>n+1);return create({token,version}).catch(e=>setError(e?.data?String(e.data):'Could not start cooking link preparation. Please retry.'));};
  useEffect(()=>{setError(null);void start();},[token,version,create]);
  const url=status?.shareToken?`${location.origin}/handoff/${status.shareToken}`:null,message=error??(status?.state==='error'?status.message:null);
- return <section className="handoff-link"><h2>Cooking handoff</h2>{url?<><OpenHandoffLink url={url}/><a className="recipe-video-button" href={whatsappHandoffUrl(url)} target="_blank" rel="noopener noreferrer">Share on WhatsApp</a><p className="help">Anyone with this read-only link can view this accepted menu.</p></>:message?<><p role="alert">{message}</p><button className="text-button" onClick={()=>void start()}>Retry</button></>:<p role="status">Preparing your cooking link… If the AI fails or takes over 60 seconds, we’ll retry once automatically.</p>}</section>;
+ return <section className="handoff-link"><h2>Cooking handoff</h2>{url?<><OpenHandoffLink url={url}/><a className="recipe-video-button" href={whatsappHandoffUrl(url)} target="_blank" rel="noopener noreferrer">Share on WhatsApp</a><p className="help">Anyone with this read-only link can view this accepted menu.</p></>:message?<><p role="alert">{message}</p><button className="text-button" onClick={()=>void start()}>Retry</button></>:<HandoffProgress key={`${token}:${version}:${attempt}`}/>}</section>;
 }

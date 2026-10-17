@@ -21,3 +21,16 @@ test('The actual cooking request receives 16000 output tokens and saves all four
  try{await (build as any)._handler(ctx,{token:'a'.repeat(64),version:handoffVersion(plan),operation:'test',jobId:'test-job'});}finally{Agent.prototype.generateText=original;}
  assert.equal(cap,16000);assert.equal(saved.dishes.length,9);assert.equal(saved.sides.length,24);assert.equal(saved.people.length,4);
 });
+test('The actual handoff request waits 150 seconds before aborting',async(t)=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ const {plan}=fourPersonHandoff(),original=Agent.prototype.generateText;let aborted=false,done=false;
+ (Agent.prototype as any).generateText=async(_ctx:any,_scope:any,options:any)=>new Promise(resolve=>options.abortSignal.addEventListener('abort',()=>{aborted=true;resolve({output:{methods:[]}});}));
+ const ctx:any={runQuery:async(ref:any)=>getFunctionName(ref)==='handoffs:snapshot'?{plan,started:1}:[],runMutation:async(ref:any)=>getFunctionName(ref)==='runSteps:start'?'step':null};
+ try{
+ const run=(build as any)._handler(ctx,{token:'a'.repeat(64),version:handoffVersion(plan),operation:'test',jobId:'test-job'}).then(()=>{done=true;});
+ for(let i=0;i<20;i++)await Promise.resolve();
+ t.mock.timers.tick(149999);assert.equal(aborted,false);assert.equal(done,false);
+ t.mock.timers.tick(1);for(let i=0;i<30;i++)await Promise.resolve();assert.equal(aborted,true);
+ t.mock.timers.tick(150000);await run;
+ }finally{Agent.prototype.generateText=original;t.mock.timers.reset();}
+});

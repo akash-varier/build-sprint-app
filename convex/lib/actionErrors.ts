@@ -6,11 +6,11 @@ export function exactError(error:unknown):string{
  const key=process.env.OPENAI_API_KEY;if(key)result=result.replaceAll(key,'[redacted]');
  return result.replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').replace(/Bearer\s+[^\s"\\]+/gi,'Bearer [redacted]');
 }
-export function plainError(error:unknown):string{
+export function plainError(error:unknown,deadlineSeconds=60):string{
  const raw=exactError(error),e=error as any;
  if(/quota|credit|billing|insufficient_quota/i.test(raw))return 'The AI account has no credits available.';
  if(e?.statusCode===429||/rate.?limit|Busy right now/i.test(raw))return 'The AI request limit was reached. Please try again in a minute.';
- if(/timeout|timed out|abort/i.test(raw))return 'The AI took longer than 60 seconds to respond.';
+ if(/timeout|timed out|abort/i.test(raw))return `The AI took longer than ${deadlineSeconds} seconds to respond.`;
  if(/length|token.?limit|max.?output|incomplete/i.test(raw))return 'The AI reply reached its length limit.';
  if(/JSON|parse|NoObjectGenerated|Cooking methods|ZodError/i.test(raw))return 'The AI returned incomplete or invalid cooking steps.';
  if(e?.data&&typeof e.data==='string')return e.data;
@@ -19,7 +19,7 @@ export function plainError(error:unknown):string{
 }
 export async function withDeadline<T>(call:(signal:AbortSignal)=>Promise<T>,ms=60000):Promise<T>{
  const controller=new AbortController();let timer:ReturnType<typeof setTimeout>;
- const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();const e=new Error('AI request timed out after 60 seconds.');e.name='TimeoutError';reject(e);},ms);});
+ const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();const e=new Error(`AI request timed out after ${ms/1000} seconds.`);e.name='TimeoutError';reject(e);},ms);});
  try{return await Promise.race([call(controller.signal),timeout]);}finally{clearTimeout(timer!);}
 }
 export async function retryOnce<T>(call:(attempt:number)=>Promise<T>,onError:(e:unknown,attempt:number)=>Promise<void>):Promise<T>{

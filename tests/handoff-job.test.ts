@@ -24,3 +24,12 @@ test('Handoff jobs cannot start with a rejected dish or a stale menu version',as
  f.tables.menuReviews[0].states[0]={state:'accepted'};
  await assert.rejects(()=>(prepare as any)._handler(f.ctx,{token:f.token,version:'old',operation:'first'}),/menu has changed/);assert.equal(f.scheduled(),0);
 });
+test('A running handoff remains working throughout both 150-second attempts',async()=>{
+ const f=fixture(),args={token:f.token,version:f.version,operation:'first'};
+ await (prepare as any)._handler(f.ctx,args);
+ f.tables.handoffJobs[0].startedAt=Date.now()-300000;
+ assert.equal((await (status as any)._handler(f.ctx,args)).state,'working');
+ await (prepare as any)._handler(f.ctx,{...args,operation:'duplicate'});assert.equal(f.scheduled(),1);
+ f.tables.handoffJobs[0].startedAt=Date.now()-331000;
+ assert.equal((await (status as any)._handler(f.ctx,args)).state,'error');
+});

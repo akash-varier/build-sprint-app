@@ -20,7 +20,7 @@ test('Cooking requests retry once, save each exact failure, and return the secon
 });
 test('A cooking timeout aborts the first request and retries only once',async()=>{
  let calls=0,aborts=0;const saved:string[]=[];
- await assert.rejects(()=>retryOnce(async()=>{calls++;return withDeadline(signal=>new Promise((_resolve,_reject)=>signal.addEventListener('abort',()=>{aborts++;})),2);},async e=>{saved.push(exactError(e));}),/timed out after 60 seconds/);
+ await assert.rejects(()=>retryOnce(async()=>{calls++;return withDeadline(signal=>new Promise((_resolve,_reject)=>signal.addEventListener('abort',()=>{aborts++;})),2);},async e=>{saved.push(exactError(e));}),/timed out after 0.002 seconds/);
  assert.equal(calls,2);assert.equal(aborts,2);assert.equal(saved.length,2);assert.match(plainError(new Error('AI request timed out after 60 seconds.')),/longer than 60 seconds/);
 });
 test('A successful retry returns cooking steps and preserves the first failure',async()=>{
