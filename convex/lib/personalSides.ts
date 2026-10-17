@@ -1,3 +1,4 @@
+import {checkSideRotation} from './sideRules';
 import {addedFatGrams,isFatAddition} from './fatAdditions';
 import {servingAliases} from './ingredientAliases';
 import {fitSideCombination,assembleSides,sideMinimum} from './jointSides';
@@ -9,7 +10,7 @@ import {mealTotals,servingCap,personalServingCap,isRoti,servingSizes,shrinkStapl
 import {withHouseholdMeasures,type DisplayPlan} from './householdMeasures';
 import type {CustomFood} from '../../shared/ingredientEstimate';
 export const dailyMet=(p:DisplayPlan['people'][number])=>(['protein','carbs','fat'] as const).every(k=>Math.abs(p.gaps[k])<=5+1e-8)&&p.gaps.fibre>=-5-1e-8;
-export const sideCapacity=(plan:DisplayPlan,index:number)=>(['protein','carbs','fat'] as const).some(k=>plan.people[index].target[k]-plan.people[index].total[k]>10)?2:1;
+export const sideCapacity=(plan:DisplayPlan,index:number)=>dailyMet(plan.people[index])?1:2;
 const round=(n:number)=>Math.round(n*10)/10;
 export function sameCalculatedSharedServings(a:DisplayPlan,b:DisplayPlan){
  const portions=(p:DisplayPlan)=>p.people.map(person=>person.portions.map(x=>[x.grams,...macroKeys.map(k=>x.macros[k])]));
@@ -83,6 +84,7 @@ export function attachPersonalSides(plan:DisplayPlan,candidates:{personIndex:num
   if(!Number.isInteger(personIndex)||!people[personIndex]||!slot||(seen.get(key)??0)>=sideCapacity(plan,personIndex)||dish.role!=='side')throw new Error('Each eligible person may have at most two sides per meal for large gaps.');seen.set(key,(seen.get(key)??0)+1);
   // Identical ingredient checks; only their recipient defines the diet/allergies.
   validateDishIngredients(dish,[people[personIndex]],stock,catalog);
+  try{checkSideRotation([...sides.filter(s=>s.personIndex===personIndex).map(s=>s.dish),dish],servingAliases(catalog));}catch{continue;}
   const daily=sharedDaily(plan,personIndex);for(const s of sides.filter(s=>s.personIndex===personIndex))for(const k of macroKeys)daily[k]+=s.dish.macros[k];
   const prior=retained.find(s=>s.dish===dish);const target=plan.people[personIndex].target;const priority=prior?.closes??macroKeys.filter(k=>dish.macros[k]>0).reduce((best,k)=>target[k]-daily[k]>target[best]-daily[best]?k:best,macroKeys.find(k=>dish.macros[k]>0)??'protein');
   const perGram=dish.macros[priority]/dish.weight;if(perGram<=0)continue;

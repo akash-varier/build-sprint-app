@@ -110,7 +110,7 @@ test('Daily side combinations close fat as well as protein instead of greedily f
 test('Joint side portions meet every meal range when a daily-fitting combination exists',()=>{
  let p=base();p.people[0].target={protein:36,carbs:105,fat:33,fibre:4.5};p=withHouseholdMeasures(p);
  const d=side('lentils').dish;d.macros={protein:15,carbs:0,fat:15,fibre:0};
- const groups=['breakfast','lunch','dinner'].map(meal=>({personIndex:0,meal:meal as Dish['meal'],options:[{...d,meal}] as Dish[]}));
+ const groups=['breakfast','lunch','dinner'].map(meal=>({personIndex:0,meal:meal as Dish['meal'],options:[{...d,meal,ingredients:d.ingredients.map(i=>i.id==='lentils'&&meal==='dinner'?{...i,id:'chickpeas'}:i)}] as Dish[]}));
  const fitted=attachPersonalSideAlternatives(p,groups,people,stock,foods);
  assert.ok(fitted.people[0].withinTolerance);assert.ok(fitted.people[0].meals.every(m=>m.mealCheck.withinRange));
  assert.ok(fitted.personalSides!.every(s=>s.dish.weight>=50));

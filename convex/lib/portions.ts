@@ -16,7 +16,7 @@ export function servingCap(dish:Dish){
 export function personalServingCap(dish:Dish,aliases:Record<string,string>={}){
  const grams=(ids:string[])=>dish.ingredients.filter(i=>ids.includes(aliases[i.id]??i.id)).reduce((s,i)=>s+i.grams,0);
  const nuts=grams(['peanut','almond','sesame']),oil=grams(['oil','ghee','butter']);
- return Math.min(servingCap(dish),grams(['chicken'])>0?250:Infinity,grams(['paneer'])>0?150:Infinity,nuts>0?40*dish.weight/nuts:Infinity,oil>0?28*dish.weight/oil:Infinity);
+ return Math.min(250,servingCap(dish),grams(['chicken'])>0?250:Infinity,grams(['paneer'])>0?150:Infinity,nuts>0?40*dish.weight/nuts:Infinity,oil>0?28*dish.weight/oil:Infinity);
 }
 export function mealCheck(macros:Macros,target:Macros){
  const percent=empty(),rangeGaps=empty();

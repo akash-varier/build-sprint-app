@@ -17,7 +17,7 @@ test('Two personal foods keep shared portions fixed and respect the stricter dai
  assert.ok(result.personalSides!.filter(s=>s.personIndex===0).reduce((sum,s)=>sum+s.dish.ingredients.filter(i=>i.id==='oil').reduce((a,i)=>a+i.grams,0),0)<=28);assert.ok(result.people[0].gaps.fat< -5);assert.equal(result.people[0].withinTolerance,false);
  for(const meal of meals){const own=result.personalSides!.filter(s=>s.meal===meal&&s.personIndex===0);assert.ok(own.length<=2);assert.ok(own.filter(s=>s.dish.ingredients.some(i=>i.id==='chicken')).reduce((sum,s)=>sum+s.dish.weight,0)<=250);assert.ok(own.reduce((sum,s)=>sum+s.dish.ingredients.filter(i=>i.id==='oil').reduce((a,i)=>a+i.grams,0),0)<=28+1e-8);}
  assert.deepEqual(result.dishes,before.dishes);assert.deepEqual(result.people[1],before.people[1]);assert.deepEqual(result.people.map(p=>p.portions),before.people.map(p=>p.portions));
- const html=renderToStaticMarkup(React.createElement(PersonalSideForMeal,{sides:result.personalSides,personIndex:0,meal:'breakfast',person:'Test A',nameOf:id=>id}));assert.match(html,/chicken/);
+ const html=renderToStaticMarkup(React.createElement(PersonalSideForMeal,{sides:result.personalSides,personIndex:0,meal:'breakfast',person:'Test A',nameOf:id=>id}));assert.match(html,/personal-side/);
 });
 test('Dense personal food caps and natural minimums allow real nuts/oil servings below 50 g',()=>{
  assert.equal(personalServingCap(chicken),250);assert.equal(personalServingCap(recipe('paneer',chicken.macros)),150);assert.equal(personalServingCap(nuts),40);assert.equal(personalServingCap(oil),28);assert.equal(sideMinimum(oil),4.6);assert.equal(sideMinimum(nuts),10);assert.equal(sideMinimum(chicken),50);

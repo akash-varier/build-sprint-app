@@ -1,3 +1,4 @@
+import {sideIngredientCounts} from './sideRules';
 import {addedFatGrams} from './fatAdditions';
 import type {DisplayPlan} from './householdMeasures';
 export function sideLimitNotice(plan:DisplayPlan,index:number){
@@ -9,6 +10,8 @@ export function sideLimitNotice(plan:DisplayPlan,index:number){
   for(const [label,actual,cap,unit] of [['chicken',cooked('chicken'),250,'g cooked'],['paneer',cooked('paneer'),150,'g cooked'],['nuts/seeds',raw(['peanut','almond','sesame']),40,'g']] as const)if(actual>=cap-.2)limits.push(`${meal}: ${label} ${actual.toFixed(1)}/${cap} ${unit}`);
   const m=p.meals.find(m=>m.meal===meal)!;for(const k of ['protein','carbs','fat'] as const)if(m.macros[k]>=p.target[k]*.4-.2)limits.push(`${meal} ${k} at/above 40% (${m.macros[k].toFixed(1)}/${(p.target[k]*.4).toFixed(1)} g)`);
  }
+ for(const s of own)if(s.dish.weight>=249.8)limits.push(`${s.meal}: ${s.dish.name} at 250 g cooked side cap`);
+ for(const [id,count] of sideIngredientCounts(own.map(s=>s.dish)))if(count>=2)limits.push(`${id}: twice-per-day side limit`);
  const fat=own.reduce((sum,s)=>sum+addedFatGrams(s.dish),0);if(fat>=27.7)limits.push(`daily added oil/ghee/butter ${fat.toFixed(1)}/28 g (2 tbsp)`);
  for(const k of ['protein','carbs','fat'] as const){const fixed=p.portions.reduce((sum,x)=>sum+x.macros[k],0);if(fixed>p.target[k]+5+1e-8)limits.unshift(`fixed shared ${k} ${fixed.toFixed(1)} g already exceeds the daily ${p.target[k]+5} g ceiling; sides cannot remove it`);}
  for(const k of ['protein','carbs','fat'] as const)if(p.total[k]>=p.target[k]+4.5)limits.push(`daily ${k} ceiling ${p.total[k].toFixed(1)}/${(p.target[k]+5).toFixed(1)} g`);

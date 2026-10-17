@@ -1,3 +1,4 @@
+import {checkSideRotation} from './sideRules';
 import {addedFatGrams,isFatAddition,labelFatAddition} from './fatAdditions';
 import {foods} from '../../shared/food';
 import {servingAliases} from './ingredientAliases';
@@ -26,6 +27,8 @@ export function fitSideCombination(plan:DisplayPlan,personIndex:number,selected:
  for(const d of selected)validateDishIngredients(d,[people[personIndex]],stock,catalog);
  const aliases=servingAliases(catalog);
  const own=retained.filter(s=>s.personIndex===personIndex),shared=plan.dishes;
+ checkSideRotation([...own.map(s=>s.dish),...selected],aliases);
+ if(own.some(s=>s.dish.weight>250+1e-7))throw new Error('Personal side exceeds 250 g cooked.');
  // Zero-weight stored optional items have no nutrition or serving.
  const recipes=[...shared.map(d=>d.weight>0?d:{...d,weight:1,macros:{protein:0,carbs:0,fat:0,fibre:0}}),...own.map(s=>s.dish),...selected];
  const originalWeights=plan.people[personIndex].portions.map(p=>p.grams);
