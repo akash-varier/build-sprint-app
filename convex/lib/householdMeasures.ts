@@ -27,7 +27,7 @@ function itemMeasure(dish:StoredPlan['dishes'][number],grams:number){
  return portionMeasure(dish.name,grams);
 }
 export function withHouseholdMeasures(plan:StoredPlan,custom:CustomFood[]=[]){
- const personalSides=plan.personalSides?.map(s=>({...s,measure:itemMeasure(s.dish,s.dish.weight),ingredientMeasures:s.dish.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))}));
+ const personalSides=plan.personalSides?.map(s=>({...s,measure:s.dish.ingredients.every(i=>['oil','ghee','salt'].includes(i.id))?menuIngredientAmount(s.dish.ingredients.find(i=>i.id!=='salt')!.id,s.dish.ingredients.filter(i=>i.id!=='salt').reduce((sum,i)=>sum+i.grams,0),custom):itemMeasure(s.dish,s.dish.weight),ingredientMeasures:s.dish.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))}));
  const people=plan.people.map((p,personIndex)=>{
   const sides=personalSides?.filter(s=>s.personIndex===personIndex)??[];
   const meals=mealTotals(plan.dishes,p.portions,p.target).map(m=>{const macros={...m.macros};for(const side of sides.filter(s=>s.meal===m.meal))for(const k of macroKeys)macros[k]+=side.dish.macros[k];return {...m,macros,mealCheck:mealCheck(macros,p.target)};});
@@ -35,7 +35,9 @@ export function withHouseholdMeasures(plan:StoredPlan,custom:CustomFood[]=[]){
   const gaps=personalSides?Object.fromEntries(macroKeys.map(k=>[k,total[k]-p.target[k]])) as Macros:p.gaps;
   return {...p,total,gaps,withinTolerance:withinMacroTolerance(gaps),meals,portions:p.portions.map((portion,j)=>({...portion,mealCheck:mealCheck(portion.macros,p.target),measure:itemMeasure(plan.dishes[j],portion.grams)}))};
  });
- return {...plan,...(personalSides?{personalSides}:{}),dishIngredientMeasures:plan.dishes.map(d=>d.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))),servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams,custom),availableMeasure:naturalAmount(i.id,i.available,custom),shortageMeasure:naturalAmount(i.id,i.shortage,custom),buyMeasure:buyableAmount(i.id,i.shortage,custom)})),people};
+ const immutableLimits=people.flatMap(p=>(['protein','carbs','fat'] as const).flatMap(k=>{const fixed=p.portions.reduce((sum,x)=>sum+x.macros[k],0);return fixed>p.target[k]+5+1e-8?[`${p.name}: fixed shared ${k} is ${fixed.toFixed(1)} g, above the daily ${(p.target[k]+5).toFixed(1)} g ceiling; sides cannot remove it.`]:[];}));
+ const sideNotice=immutableLimits.length?[plan.sideNotice,...immutableLimits.filter(s=>!plan.sideNotice?.includes(s))].filter(Boolean).join(' '):plan.sideNotice;
+ return {...plan,...(sideNotice?{sideNotice}:{}),...(personalSides?{personalSides}:{}),dishIngredientMeasures:plan.dishes.map(d=>d.ingredients.map(i=>menuIngredientAmount(i.id,i.grams,custom))),servingCapsApplied:plan.people.every(p=>p.portions.every(x=>x.mealCheck!==undefined)),ingredients:plan.ingredients.map(i=>({...i,measure:naturalAmount(i.id,i.grams,custom),availableMeasure:naturalAmount(i.id,i.available,custom),shortageMeasure:naturalAmount(i.id,i.shortage,custom),buyMeasure:buyableAmount(i.id,i.shortage,custom)})),people};
 }
 
 export type StoredPlan=Omit<MealPlan,'people'> & {mealCuisines?:MealCuisines;personalSides?:PersonalSide[];sideNotice?:string} & {people:(Omit<MealPlan['people'][number],'portions'|'meals'> & {meals?:MealPlan['people'][number]['meals']} & {portions:{grams:number;macros:MealPlan['people'][number]['total'];measure?:string;mealCheck?:ReturnType<typeof mealCheck>}[]})[]};

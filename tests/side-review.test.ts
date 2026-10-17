@@ -21,3 +21,8 @@ test('Personal-side cards render their own Accept/Reject controls and saved reje
  const html=renderToStaticMarkup(React.createElement(PersonalSideForMeal,{sides,personIndex:0,meal:'breakfast',person:'Test A',nameOf:id=>id,review:()=>React.createElement(DishReview,{decision:{state:'rejected',reason:'Too oily'},disabled:false,replacing:false,onAccept:async()=>{},onReject:async()=>{},onRetry:async()=>{}})}));
  assert.match(html,/Side for Test A only/);assert.match(html,/Rejected: Too oily/);assert.match(html,/>Accept</);assert.match(html,/>Reject</);assert.match(html,/Retry replacement/);
 });
+
+test('Accept all accepts pending dishes/sides and preserves every rejection and reason',async()=>{
+ const {acceptPending}=await import('../shared/bulkReview');const states:any=[{state:'pending'},{state:'accepted'},{state:'rejected',reason:'Too oily'}];
+ const next=acceptPending(states);assert.deepEqual(next,[{state:'accepted'},{state:'accepted'},{state:'rejected',reason:'Too oily'}]);assert.equal(next[2],states[2]);assert.equal(states[0].state,'pending');
+});

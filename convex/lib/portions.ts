@@ -13,6 +13,11 @@ export function servingCap(dish:Dish){
   eggs>0?dish.weight*toGrams({id:'egg',quantity:4,unit:'pieces',mustUse:false})/eggs:Infinity,
   bread>0?dish.weight*4*servingSizes.breadSlice/bread:Infinity);
 }
+export function personalServingCap(dish:Dish){
+ const grams=(ids:string[])=>dish.ingredients.filter(i=>ids.includes(i.id)).reduce((s,i)=>s+i.grams,0);
+ const nuts=grams(['peanut','almond','sesame']),oil=grams(['oil','ghee']);
+ return Math.min(servingCap(dish),grams(['chicken'])>0?250:Infinity,grams(['paneer'])>0?150:Infinity,nuts>0?40*dish.weight/nuts:Infinity,oil>0?28*dish.weight/oil:Infinity);
+}
 export function mealCheck(macros:Macros,target:Macros){
  const percent=empty(),rangeGaps=empty();
  for(const key of macroKeys){percent[key]=target[key]>0?macros[key]/target[key]*100:0;rangeGaps[key]=macros[key]<target[key]*.25?macros[key]-target[key]*.25:key!=='fibre'&&macros[key]>target[key]*.4?macros[key]-target[key]*.4:0;}
@@ -24,21 +29,28 @@ export function mealTotals(dishes:Dish[],portions:{macros:Macros}[],target:Macro
 type Bounds={min?:number;max?:number};
 type Model={optimize:string;opType:'min';constraints:Record<string,Bounds>;variables:Record<string,Record<string,number>>};
 function solve(model:Model):Record<string,number>{
- const result=solver.Solve(structuredClone(model),1e-9) as any;
+ const clean=structuredClone(model);for(const [key,bound] of Object.entries(clean.constraints))if(!Object.values(clean.variables).some(v=>Math.abs(v[key]??0)>0)&&(bound.min??0)<=0&&(bound.max??0)>=0)delete clean.constraints[key];
+ const result=solver.Solve(clean,1e-9) as any;
  if(!result.feasible||result.bounded===false)throw new Error('Could not calculate capped portions.');
  return result;
 }
-export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)[]=[],minimums:number[]=[]){
- if(dishes.length<3||dishes.length>12||dishes.some(d=>!Number.isFinite(d.weight)||d.weight<=0))throw new Error('Valid meal items are required.');
+export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)[]=[],minimums:number[]=[],personalStart:number=Infinity){
+ if(dishes.length<3||dishes.length>15||dishes.some(d=>!Number.isFinite(d.weight)||d.weight<=0))throw new Error('Valid meal items are required.');
  // Each variable is one cooked item weight, never an AI-generated portion.
  const model:Model={optimize:'rangeCost',opType:'min',constraints:{},variables:{rangeSlack:{rangeCost:1},dailySlack:{dailyCost:1}}};
  dishes.forEach((d,j)=>{
-  const cap=servingCap(d),minimum=minimums[j]??(d.role==='main'?Math.min(50,cap):d.role==='staple'?Math.min(25,cap):0);
+  const cap=j>=personalStart?personalServingCap(d):servingCap(d),minimum=minimums[j]??(d.role==='main'?Math.min(50,cap):d.role==='staple'?Math.min(25,cap):0);
   model.constraints[`cap${j}`]=fixed[j]===undefined?{min:minimum,max:cap}:{min:fixed[j],max:fixed[j]};model.variables[`item${j}`]={[`cap${j}`]:1};
  });
  // Bread is additionally limited to four slices across the entire meal.
  for(const meal of mealNames){if(!dishes.some(d=>d.meal===meal&&d.ingredients.some(i=>i.id==='bread')))continue;const key=`${meal}_bread`;model.constraints[key]={max:4*servingSizes.breadSlice};dishes.forEach((d,j)=>{if(d.meal===meal)model.variables[`item${j}`][key]=d.ingredients.filter(i=>i.id==='bread').reduce((sum,i)=>sum+i.grams,0)/d.weight;});}
  for(const meal of mealNames){if(!dishes.some(d=>d.meal===meal&&isRoti(d)))continue;const key=`${meal}_rotis`;model.constraints[key]={max:4*servingSizes.roti};dishes.forEach((d,j)=>{if(d.meal===meal&&isRoti(d))model.variables[`item${j}`][key]=1;});}
+ // Personal-food limits are combined per person/meal; shared recipes retain their caps.
+ for(const meal of mealNames)for(const [kind,max] of [['chicken',250],['paneer',150],['nuts',40],['oil',28]] as const){
+  const key=`personal_${meal}_${kind}`;model.constraints[key]={max:max-.1};
+  dishes.forEach((d,j)=>{if(j<personalStart||d.meal!==meal)return;const ids=kind==='nuts'?['peanut','almond','sesame']:kind==='oil'?['oil','ghee']:[kind];const raw=d.ingredients.filter(i=>ids.includes(i.id)).reduce((sum,i)=>sum+i.grams,0);model.variables[`item${j}`][key]=(kind==='chicken'||kind==='paneer')?(raw>0?1:0):raw/d.weight;});
+ }
+ if(Number.isFinite(personalStart))for(const k of ['protein','carbs','fat'] as const){const fixedActual=dishes.reduce((sum,d,j)=>sum+(fixed[j]??0)*d.macros[k]/d.weight,0),key=`personal_daily_${k}`;model.constraints[key]={max:Math.max(fixedActual,target[k]+4.8)};dishes.forEach((d,j)=>{model.variables[`item${j}`][key]=d.macros[k]/d.weight;});}
  for(const meal of mealNames)for(const k of ['protein','carbs','fat'] as const){
   const lo=`${meal}_${k}_lo`,hi=`${meal}_${k}_hi`;
   const roundingRoom=target[k]>=4?.2:0;model.constraints[lo]={min:.25*target[k]+roundingRoom};model.constraints[hi]={max:.4*target[k]-roundingRoom};
@@ -53,7 +65,7 @@ export function fitPortions(dishes:Dish[],target:Macros,fixed:(number|undefined)
  // Finally get as close to target as the best feasible daily/range fit allows.
  model.optimize='dailyCost';
  const fitted=solve(model);
- const weights=dishes.map((d,j)=>fixed[j]??Math.max(0,Math.min(Math.floor(servingCap(d)*10+1e-8)/10,round(fitted[`item${j}`]??0))));
+ const weights=dishes.map((d,j)=>fixed[j]??Math.max(0,Math.min(Math.floor((j>=personalStart?personalServingCap(d):servingCap(d))*10+1e-8)/10,round(fitted[`item${j}`]??0))));
  // Rounding independent item weights must not overrun the shared bread limit.
  for(const meal of mealNames){
   const coefficients=dishes.map(d=>d.meal===meal?d.ingredients.filter(i=>i.id==='bread').reduce((s,i)=>s+i.grams,0)/d.weight:0);

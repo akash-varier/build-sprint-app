@@ -1,5 +1,6 @@
+import {sideReviewKey} from '../shared/sideReview';
 import {estimatedFood} from '../shared/ingredientEstimate';
-import {shrinkPersonalStaples,sameCalculatedSharedServings} from './lib/personalSides';
+import {dailyMet,shrinkPersonalStaples,sameCalculatedSharedServings} from './lib/personalSides';
 import {withHouseholdMeasures} from './lib/householdMeasures';
 import {v,ConvexError} from 'convex/values';
 import {internalMutation,type MutationCtx} from './_generated/server';
@@ -24,6 +25,9 @@ export const finish=internalMutation({args:{token:v.string(),runId:v.string(),pl
  const custom=(await ctx.db.query('ingredientEstimates').withIndex('by_token',q=>q.eq('token',args.token)).take(200)).filter(r=>r.confirmed).map(r=>estimatedFood(`custom_${r._id}`,r.name,r.estimate));
  const expected=shrinkPersonalStaples(withHouseholdMeasures(h.plan!,custom),h.stock,custom);
  if(!sameCalculatedSharedServings(expected,withHouseholdMeasures(args.plan,custom)))throw new ConvexError('Only the calculated staple reduction is allowed.');
+ for(let i=0;i<h.plan!.people.length;i++)if(dailyMet(withHouseholdMeasures(h.plan!,custom).people[i])){
+  const before=h.plan!.people[i],after=args.plan.people[i];if(JSON.stringify(before.portions.map(p=>[p.grams,p.macros.protein,p.macros.carbs,p.macros.fat,p.macros.fibre]))!==JSON.stringify(after.portions.map(p=>[p.grams,p.macros.protein,p.macros.carbs,p.macros.fat,p.macros.fibre]))||sideReviewKey(h.plan!.personalSides?.filter(s=>s.personIndex===i))!==sideReviewKey(args.plan.personalSides?.filter(s=>s.personIndex===i)))throw new ConvexError('A person already within tolerance must stay unchanged.');
+ }
  const review=await ctx.db.query('menuReviews').withIndex('by_household',q=>q.eq('householdId',h._id)).unique();if(review?.dishKey===run.dishKey)await ctx.db.patch(review._id,{dishKey:dishReviewKey(args.plan.dishes)});
  await ctx.db.patch(h._id,{plan:args.plan});await ctx.db.delete(run._id);return null;
 }});

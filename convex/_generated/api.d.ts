@@ -25,6 +25,7 @@ import type * as lib_personalSides from "../lib/personalSides.js";
 import type * as lib_planPersonalSides from "../lib/planPersonalSides.js";
 import type * as lib_portions from "../lib/portions.js";
 import type * as lib_replaceDish from "../lib/replaceDish.js";
+import type * as lib_sideLimits from "../lib/sideLimits.js";
 import type * as menu from "../menu.js";
 import type * as personalSideState from "../personalSideState.js";
 import type * as reviews from "../reviews.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "lib/planPersonalSides": typeof lib_planPersonalSides;
   "lib/portions": typeof lib_portions;
   "lib/replaceDish": typeof lib_replaceDish;
+  "lib/sideLimits": typeof lib_sideLimits;
   menu: typeof menu;
   personalSideState: typeof personalSideState;
   reviews: typeof reviews;
