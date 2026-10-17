@@ -2,7 +2,7 @@ import {z} from 'zod';
 import type {Food} from '../../shared/food';
 import type {DisplayPlan} from './householdMeasures';
 import type {HandoffPage} from '../../shared/handoff';
-export const methodReply=z.object({methods:z.array(z.object({key:z.string(),steps:z.array(z.string().trim().min(1).max(220).refine(s=>!/(https?:|www\.|youtube\.com)/i.test(s),'No links in cooking steps.')).min(3).max(5)}).strict()).max(27)}).strict();
+export const methodReply=z.object({methods:z.array(z.object({key:z.string(),steps:z.array(z.string().trim().min(1).max(220).refine(s=>!/(https?:|www\.|youtube\.com)/i.test(s),'No links in cooking steps.')).min(3).max(5)}).strict()).max(33)}).strict();
 export function safeHandoffPage(page:HandoffPage):HandoffPage{
  const safe=(item:HandoffPage['sides'][number]|HandoffPage['dishes'][number])=>({...item,steps:item.steps.map(step=>/\b(portions?|servings?|divide|split|serve)\b/i.test(step)?'Serve the saved cooked portions shown above.':step.replace(/[^\p{Script=Latin}\p{N}\p{P}\p{Z}\p{S}\s]/gu,'').replace(/\s+/g,' ').trim())});
  return {...page,dishes:page.dishes.map(d=>safe(d) as HandoffPage['dishes'][number]),sides:page.sides.map(d=>safe(d) as HandoffPage['sides'][number])};

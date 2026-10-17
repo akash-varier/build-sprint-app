@@ -17,7 +17,7 @@ export const build=internalAction({args:{token:v.string(),version:v.string(),ope
  const agent=new Agent(components.agent,{name:'Accepted menu cooking methods',languageModel:createOpenAI({apiKey:process.env.OPENAI_API_KEY}).responses('gpt-6-luna'),maxSteps:1});
  const page=await retryOnce(async attempt=>await trackStep(ctx,a.token,`handoff.ai.${attempt}`,async()=>{
   await ctx.runMutation(internal.handoffs.charge,{token:a.token,version:a.version,operation:a.operation});
-  return await withDeadline(async signal=>{const result=await agent.generateText(ctx,{userId:randomBytes(16).toString('hex')},{prompt,output:Output.object({schema}),maxOutputTokens:4000,maxRetries:0,providerOptions:{openai:{reasoningEffort:'low'}},abortSignal:signal},{contextOptions:{recentMessages:0,searchOtherThreads:false},storageOptions:{saveMessages:'none'}});return buildHandoffPage(plan,catalog,result.output);});
+  return await withDeadline(async signal=>{const result=await agent.generateText(ctx,{userId:randomBytes(16).toString('hex')},{prompt,output:Output.object({schema}),maxOutputTokens:16000,maxRetries:0,providerOptions:{openai:{reasoningEffort:'low'}},abortSignal:signal},{contextOptions:{recentMessages:0,searchOtherThreads:false},storageOptions:{saveMessages:'none'}});return buildHandoffPage(plan,catalog,result.output);});
  }),async()=>{});
  const shareToken=await trackStep(ctx,a.token,'handoff.save',async()=>await ctx.runMutation(internal.handoffs.save,{token:a.token,version:a.version,started:snapshot.started,shareToken:randomBytes(32).toString('hex'),page}));
  await ctx.runMutation(internal.handoffs.finishJob,{jobId:a.jobId,operation:a.operation,shareToken});
