@@ -9,10 +9,14 @@
  */
 
 import type * as dishReplacement from "../dishReplacement.js";
+import type * as handoffAI from "../handoffAI.js";
+import type * as handoffValidators from "../handoffValidators.js";
+import type * as handoffs from "../handoffs.js";
 import type * as households from "../households.js";
 import type * as ingredientAI from "../ingredientAI.js";
 import type * as ingredients from "../ingredients.js";
 import type * as lib_dishRequest from "../lib/dishRequest.js";
+import type * as lib_handoffPage from "../lib/handoffPage.js";
 import type * as lib_householdMeasures from "../lib/householdMeasures.js";
 import type * as lib_ingredientUnits from "../lib/ingredientUnits.js";
 import type * as lib_menuFit from "../lib/menuFit.js";
@@ -35,10 +39,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   dishReplacement: typeof dishReplacement;
+  handoffAI: typeof handoffAI;
+  handoffValidators: typeof handoffValidators;
+  handoffs: typeof handoffs;
   households: typeof households;
   ingredientAI: typeof ingredientAI;
   ingredients: typeof ingredients;
   "lib/dishRequest": typeof lib_dishRequest;
+  "lib/handoffPage": typeof lib_handoffPage;
   "lib/householdMeasures": typeof lib_householdMeasures;
   "lib/ingredientUnits": typeof lib_ingredientUnits;
   "lib/menuFit": typeof lib_menuFit;
