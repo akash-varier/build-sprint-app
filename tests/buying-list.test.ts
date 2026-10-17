@@ -2,5 +2,5 @@ import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';
 test('Need to buy includes all food shortages in natural units and never asks users to buy tap water',()=>{
  const ingredients=[{id:'curd',grams:200,available:0,shortage:200,measure:'200 g',availableMeasure:'0 g',shortageMeasure:'200 g',buyMeasure:'1 cup'},{id:'oil',grams:20,available:5,shortage:15,measure:'21.74 ml',availableMeasure:'5.44 ml',shortageMeasure:'16.31 ml',buyMeasure:'2 tbsp'},{id:'water',grams:200,available:0,shortage:200,measure:'.2 L',availableMeasure:'0 L',shortageMeasure:'.2 L'}];
  const html=renderToStaticMarkup(React.createElement(IngredientRequirements,{ingredients,nameOf:id=>id}));const buying=html.slice(html.indexOf('Need to buy'),html.indexOf('Available at home'));
- assert.match(buying,/200 g/);assert.match(buying,/2 tbsp/);assert.match(buying,/15 g shortage/);assert.doesNotMatch(buying,/20 g raw/);assert.doesNotMatch(buying,/water|Tap water/);assert.match(html,/Tap water/);
+ assert.match(buying,/Need 200 g · Have 0 g · Buy 1 cup/);assert.match(buying,/Need 21.74 ml · Have 5.44 ml · Buy 2 tbsp/);assert.match(buying,/2 tbsp/);assert.match(buying,/15 g shortage/);assert.doesNotMatch(buying,/20 g raw/);assert.doesNotMatch(buying,/water|Tap water/);assert.match(html,/Tap water/);
 });
